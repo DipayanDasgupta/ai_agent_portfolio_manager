@@ -16,9 +16,10 @@ class DataFetcher:
         # Get API keys from environment variables
         self.finnhub_key = os.getenv('FINNHUB_API_KEY', "d1fh2ehr01qig3h1pohgd1fh2ehr01qig3h1poi0")
         self.gemini_key = os.getenv('GEMINI_API_KEY')
+        
         self.cache_duration = 300  # 5 minutes cache
         self.db = DatabaseManager()
-
+         
         # Initialize Finnhub client
         try:
             self.finnhub_client = finnhub.Client(api_key=self.finnhub_key)
@@ -263,9 +264,10 @@ class DataFetcher:
                 response = self.gemini_model.generate_content(
                     contents=prompt,
                     generation_config={
-                        'max_output_tokens': 350,
+                        'max_output_tokens': 5000,
                         'temperature': 0.3
-                    }
+                    },
+                    request_options={'timeout': 120}
                 )
                 analysis = response.text
             except Exception as e:

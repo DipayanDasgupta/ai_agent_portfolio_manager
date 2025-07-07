@@ -111,9 +111,10 @@ class AIAnalyzer:
             response = self.model.generate_content(
                 contents=prompt,
                 generation_config={
-                    'max_output_tokens': 2000,
+                    'max_output_tokens': 10000,
                     'temperature': 0.3
-                }
+                },
+                request_options={'timeout': 120}
             )
 
             try:
@@ -171,9 +172,10 @@ class AIAnalyzer:
             response = self.model.generate_content(
                 contents=prompt,
                 generation_config={
-                    'max_output_tokens': 400,
+                    'max_output_tokens': 10000,
                     'temperature': 0.3
-                }
+                },
+                request_options={'timeout': 120} 
             )
             
             return response.text
@@ -224,9 +226,10 @@ class AIAnalyzer:
             response = self.model.generate_content(
                 contents=prompt,
                 generation_config={
-                    'max_output_tokens': 500,
+                    'max_output_tokens': 5000,
                     'temperature': 0.3
-                }
+                },
+                request_options={'timeout': 120} 
             )
             
             return response.text
@@ -262,9 +265,10 @@ class AIAnalyzer:
             response = self.model.generate_content(
                 contents=prompt,
                 generation_config={
-                    'max_output_tokens': 350,
+                    'max_output_tokens': 5000,
                     'temperature': 0.3
-                }
+                },
+                request_options={'timeout': 120} 
             )
             
             return response.text
@@ -315,9 +319,10 @@ class AIAnalyzer:
             response = self.model.generate_content(
                 contents=prompt,
                 generation_config={
-                    'max_output_tokens': 400,
+                    'max_output_tokens': 5000,
                     'temperature': 0.3
-                }
+                },
+                request_options={'timeout': 120} 
             )
             
             return response.text
@@ -369,9 +374,10 @@ class AIAnalyzer:
             response = self.model.generate_content(
                 contents=prompt,
                 generation_config={
-                    'max_output_tokens': 400,
+                    'max_output_tokens': 5000,
                     'temperature': 0.3
-                }
+                },
+                request_options={'timeout': 120} 
             )
             
             return response.text

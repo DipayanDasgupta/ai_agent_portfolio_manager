@@ -115,7 +115,7 @@ class AutonomousPortfolioAgent:
             Ensure all monetary values are in INR.
             """
             
-            response = self.client.generate_content(prompt, generation_config={'temperature': 0.3, 'max_output_tokens': 1500})
+            response = self.client.generate_content(prompt, generation_config={'temperature': 0.3, 'max_output_tokens': 5000})
             analysis = response.text.strip()
 
             # Store analysis in database
@@ -173,7 +173,7 @@ class AutonomousPortfolioAgent:
             Use INR for all monetary values and base decisions on Indian market dynamics.
             """
             
-            response = self.client.generate_content(prompt, generation_config={'temperature': 0.2, 'max_output_tokens': 1200})
+            response = self.client.generate_content(prompt, generation_config={'temperature': 0.2, 'max_output_tokens': 5000})
             decisions = response.text.strip()
 
             # Store decisions in database
@@ -230,7 +230,7 @@ class AutonomousPortfolioAgent:
             Base predictions on Indian market cycles and economic indicators.
             """
             
-            response = self.client.generate_content(prompt, generation_config={'temperature': 0.5, 'max_output_tokens': 1800})
+            response = self.client.generate_content(prompt, generation_config={'temperature': 0.5, 'max_output_tokens': 5000})
             prediction = response.text.strip()
 
             # Store prediction in database
@@ -327,7 +327,7 @@ class AutonomousPortfolioAgent:
             Ensure total allocation sums to 100%. Use INR for all monetary values.
             """
             
-            response = self.client.generate_content(prompt, generation_config={'temperature': 0.2, 'max_output_tokens': 2500})
+            response = self.client.generate_content(prompt, generation_config={'temperature': 0.2, 'max_output_tokens': 5000})
             ai_response = response.text.strip()
 
             # Parse AI response for structured portfolio

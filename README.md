@@ -69,7 +69,7 @@ Execute the following commands to set up the project environment.
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/DipayanDasgupta/india-ai-portfolio-manager.git
+    git clonehttps://github.com/DipayanDasgupta/ai_agent_portfolio_manager.git
     cd india-ai-portfolio-manager
     ```
 

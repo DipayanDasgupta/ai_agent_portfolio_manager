@@ -2,39 +2,64 @@ import streamlit as st
 import sys
 import os
 import logging
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-from utils.data_fetcher import DataFetcher
-from utils.ai_analyzer import AIAnalyzer
-from utils.database_manager import DatabaseManager
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime, timedelta
 
+# Add the utils directory to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from utils.data_fetcher import DataFetcher
+from utils.ai_analyzer import AIAnalyzer
+from utils.database_manager import DatabaseManager
+from utils.fallback_data_provider import FallbackDataProvider
+from utils.risk_calculator import RiskCalculator
+
 # Set up logging for this module
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('portfolio_app_india.log')  # Aligned with main app
+    ]
+)
 logger = logging.getLogger(__name__)
 
 def init_components():
     """Initialize all required components with logging"""
-    logger.info("Initializing Market Analysis components...")
+    logger.info("Initializing India Market Analysis components...")
     
-    if 'data_fetcher' not in st.session_state:
-        logger.info("Creating DataFetcher for Market Analysis")
-        st.session_state.data_fetcher = DataFetcher()
-    
-    if 'ai_analyzer' not in st.session_state:
-        logger.info("Creating AIAnalyzer for Market Analysis")
-        st.session_state.ai_analyzer = AIAnalyzer()
-    
-    if 'db_manager' not in st.session_state:
-        logger.info("Creating DatabaseManager for Market Analysis")
-        st.session_state.db_manager = DatabaseManager()
-    
-    logger.info("Market Analysis components initialized successfully")
+    try:
+        if 'data_fetcher' not in st.session_state:
+            logger.info("Creating DataFetcher for Market Analysis")
+            st.session_state.data_fetcher = DataFetcher()
+        
+        if 'ai_analyzer' not in st.session_state:
+            logger.info("Creating AIAnalyzer for Market Analysis")
+            st.session_state.ai_analyzer = AIAnalyzer()
+        
+        if 'db_manager' not in st.session_state:
+            logger.info("Creating DatabaseManager for Market Analysis")
+            st.session_state.db_manager = DatabaseManager()
+        
+        if 'fallback_data_provider' not in st.session_state:
+            logger.info("Creating FallbackDataProvider for Market Analysis")
+            st.session_state.fallback_data_provider = FallbackDataProvider()
+        
+        if 'risk_calculator' not in st.session_state:
+            logger.info("Creating RiskCalculator for Market Analysis")
+            symbols = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS']
+            st.session_state.risk_calculator = RiskCalculator(symbols=symbols, market_index='^NSEI')
+        
+        logger.info("Market Analysis components initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing Market Analysis components: {str(e)}")
+        st.error(f"Initialization error: {str(e)}")
 
 def main():
-    logger.info("Starting Market Analysis main function")
+    logger.info("Starting India Market Analysis main function")
     
     try:
         # Initialize components
@@ -43,6 +68,8 @@ def main():
         data_fetcher = st.session_state.data_fetcher
         ai_analyzer = st.session_state.ai_analyzer
         db = st.session_state.db_manager
+        fallback = st.session_state.fallback_data_provider
+        risk_calc = st.session_state.risk_calculator
         
         logger.info("All components loaded successfully for Market Analysis")
     except Exception as e:
@@ -50,193 +77,255 @@ def main():
         st.error(f"Initialization error: {str(e)}")
         return
     
-    st.title("📊 Comprehensive Market Analysis")
-    st.markdown("### Real-time market insights across all asset classes for informed investment decisions")
+    st.title("📈 India Market Analysis")
+    st.markdown("### Real-time insights for Indian equities and sector indices")
     
     # Market overview section
-    st.subheader("🌍 Global Market Overview")
+    st.subheader("🇮🇳 Indian Market Overview")
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("**📈 Equity Markets**")
+        st.markdown("**📈 Major Indices**")
         try:
-            logger.info("Fetching S&P 500 index data")
-            # Use ^GSPC for actual S&P 500 index, not SPY ETF
-            spy_data = data_fetcher.get_stock_data('^GSPC')
-            if spy_data is not None and not spy_data.empty:
-                spy_current = float(spy_data.iloc[-1]['close'])
-                spy_prev = float(spy_data.iloc[-2]['close']) if len(spy_data) > 1 else spy_current
-                spy_change = ((spy_current - spy_prev) / spy_prev) * 100 if spy_prev != 0 else 0
-                st.metric("S&P 500", f"{spy_current:,.2f}", f"{spy_change:+.3f}%")
-                logger.info(f"Successfully displayed S&P 500: {spy_current:,.2f}")
+            logger.info("Fetching Nifty 50 index data")
+            nifty_data = data_fetcher.get_stock_data('^NSEI')
+            if nifty_data is not None and not nifty_data.empty:
+                nifty_current = float(nifty_data.iloc[-1]['close'])
+                nifty_prev = float(nifty_data.iloc[-2]['close']) if len(nifty_data) > 1 else nifty_current
+                nifty_change = ((nifty_current - nifty_prev) / nifty_prev) * 100 if nifty_prev != 0 else 0
+                st.metric("Nifty 50", f"₹{nifty_current:,.2f}", f"{nifty_change:+.2f}%")
+                logger.info(f"Successfully displayed Nifty 50: ₹{nifty_current:,.2f}")
             else:
-                # Fallback to SPY ETF if index not available
-                spy_data = data_fetcher.get_stock_data('SPY')
-                if spy_data is not None and not spy_data.empty:
-                    spy_current = float(spy_data.iloc[-1]['close']) * 10  # Approximate conversion
-                    st.metric("S&P 500", f"{spy_current:,.2f}", "ETF-based")
+                nifty_data = fallback.generate_stock_data('^NSEI', days=2)
+                if not nifty_data.empty:
+                    nifty_current = float(nifty_data.iloc[-1]['close'])
+                    st.metric("Nifty 50", f"₹{nifty_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for Nifty 50")
                 else:
-                    st.metric("S&P 500", "Data unavailable", None)
-                    logger.warning("S&P 500 data unavailable")
+                    st.metric("Nifty 50", "Data unavailable", None)
+                    logger.warning("Nifty 50 data unavailable")
             
-            logger.info("Fetching NASDAQ index data")
-            # Use ^IXIC for actual NASDAQ index, not QQQ ETF
-            nasdaq_data = data_fetcher.get_stock_data('^IXIC')
-            if nasdaq_data is not None and not nasdaq_data.empty:
-                nasdaq_current = float(nasdaq_data.iloc[-1]['close'])
-                nasdaq_prev = float(nasdaq_data.iloc[-2]['close']) if len(nasdaq_data) > 1 else nasdaq_current
-                nasdaq_change = ((nasdaq_current - nasdaq_prev) / nasdaq_prev) * 100 if nasdaq_prev != 0 else 0
-                st.metric("NASDAQ", f"{nasdaq_current:,.2f}", f"{nasdaq_change:+.3f}%")
-                logger.info(f"Successfully displayed NASDAQ: {nasdaq_current:,.2f}")
+            logger.info("Fetching Sensex index data")
+            sensex_data = data_fetcher.get_stock_data('^BSESN')
+            if sensex_data is not None and not sensex_data.empty:
+                sensex_current = float(sensex_data.iloc[-1]['close'])
+                sensex_prev = float(sensex_data.iloc[-2]['close']) if len(sensex_data) > 1 else sensex_current
+                sensex_change = ((sensex_current - sensex_prev) / sensex_prev) * 100 if sensex_prev != 0 else 0
+                st.metric("Sensex", f"₹{sensex_current:,.2f}", f"{sensex_change:+.2f}%")
+                logger.info(f"Successfully displayed Sensex: ₹{sensex_current:,.2f}")
             else:
-                # Fallback to QQQ ETF if index not available
-                qqq_data = data_fetcher.get_stock_data('QQQ')
-                if qqq_data is not None and not qqq_data.empty:
-                    qqq_current = float(qqq_data.iloc[-1]['close']) * 37  # Approximate conversion
-                    st.metric("NASDAQ", f"{qqq_current:,.2f}", "ETF-based")
+                sensex_data = fallback.generate_stock_data('^BSESN', days=2)
+                if not sensex_data.empty:
+                    sensex_current = float(sensex_data.iloc[-1]['close'])
+                    st.metric("Sensex", f"₹{sensex_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for Sensex")
                 else:
-                    st.metric("NASDAQ", "Data unavailable", None)
-                    logger.warning("NASDAQ data unavailable")
+                    st.metric("Sensex", "Data unavailable", None)
+                    logger.warning("Sensex data unavailable")
         except Exception as e:
-            st.error(f"Equity data temporarily unavailable")
-            logger.error(f"Error loading equity market data: {str(e)}", exc_info=True)
+            st.error(f"Index data temporarily unavailable")
+            logger.error(f"Error loading index data: {str(e)}", exc_info=True)
     
     with col2:
-        st.markdown("**₿ Cryptocurrency**")
+        st.markdown("**🏦 Banking Sector**")
         try:
-            btc_data = data_fetcher.get_crypto_data('BTC')
-            if btc_data is not None and not btc_data.empty:
-                btc_current = float(btc_data.iloc[-1]['close'])
-                btc_prev = float(btc_data.iloc[-2]['close']) if len(btc_data) > 1 else btc_current
-                btc_change = ((btc_current - btc_prev) / btc_prev) * 100
-                st.metric("Bitcoin", f"${btc_current:,.0f}", f"{btc_change:+.2f}%")
+            banknifty_data = data_fetcher.get_stock_data('BANKNIFTY.NS')
+            if banknifty_data is not None and not banknifty_data.empty:
+                banknifty_current = float(banknifty_data.iloc[-1]['close'])
+                banknifty_prev = float(banknifty_data.iloc[-2]['close']) if len(banknifty_data) > 1 else banknifty_current
+                banknifty_change = ((banknifty_current - banknifty_prev) / banknifty_prev) * 100 if banknifty_prev != 0 else 0
+                st.metric("Nifty Bank", f"₹{banknifty_current:,.2f}", f"{banknifty_change:+.2f}%")
+                logger.info(f"Successfully displayed Nifty Bank: ₹{banknifty_current:,.2f}")
+            else:
+                banknifty_data = fallback.generate_stock_data('BANKNIFTY.NS', days=2)
+                if not banknifty_data.empty:
+                    banknifty_current = float(banknifty_data.iloc[-1]['close'])
+                    st.metric("Nifty Bank", f"₹{banknifty_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for Nifty Bank")
+                else:
+                    st.metric("Nifty Bank", "Data unavailable", None)
+                    logger.warning("Nifty Bank data unavailable")
             
-            eth_data = data_fetcher.get_crypto_data('ETH')
-            if eth_data is not None and not eth_data.empty:
-                eth_current = float(eth_data.iloc[-1]['close'])
-                eth_prev = float(eth_data.iloc[-2]['close']) if len(eth_data) > 1 else eth_current
-                eth_change = ((eth_current - eth_prev) / eth_prev) * 100
-                st.metric("Ethereum", f"${eth_current:,.0f}", f"{eth_change:+.2f}%")
+            hdfcbank_data = data_fetcher.get_stock_data('HDFCBANK.NS')
+            if hdfcbank_data is not None and not hdfcbank_data.empty:
+                hdfcbank_current = float(hdfcbank_data.iloc[-1]['close'])
+                hdfcbank_prev = float(hdfcbank_data.iloc[-2]['close']) if len(hdfcbank_data) > 1 else hdfcbank_current
+                hdfcbank_change = ((hdfcbank_current - hdfcbank_prev) / hdfcbank_prev) * 100 if hdfcbank_prev != 0 else 0
+                st.metric("HDFC Bank", f"₹{hdfcbank_current:,.2f}", f"{hdfcbank_change:+.2f}%")
+                logger.info(f"Successfully displayed HDFC Bank: ₹{hdfcbank_current:,.2f}")
+            else:
+                hdfcbank_data = fallback.generate_stock_data('HDFCBANK.NS', days=2)
+                if not hdfcbank_data.empty:
+                    hdfcbank_current = float(hdfcbank_data.iloc[-1]['close'])
+                    st.metric("HDFC Bank", f"₹{hdfcbank_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for HDFC Bank")
+                else:
+                    st.metric("HDFC Bank", "Data unavailable", None)
+                    logger.warning("HDFC Bank data unavailable")
         except Exception as e:
-            st.error(f"Error loading crypto data: {str(e)}")
+            st.error(f"Banking sector data temporarily unavailable")
+            logger.error(f"Error loading banking sector data: {str(e)}", exc_info=True)
     
     with col3:
-        st.markdown("**🥇 Commodities**")
+        st.markdown("**💻 IT Sector**")
         try:
-            logger.info("Fetching Gold futures data")
-            # Try gold futures first, then fallback to GLD ETF
-            gold_data = data_fetcher.get_stock_data('GC=F')
-            if gold_data is not None and not gold_data.empty:
-                gold_current = float(gold_data.iloc[-1]['close'])
-                gold_prev = float(gold_data.iloc[-2]['close']) if len(gold_data) > 1 else gold_current
-                gold_change = ((gold_current - gold_prev) / gold_prev) * 100 if gold_prev != 0 else 0
-                st.metric("Gold", f"${gold_current:,.2f}", f"{gold_change:+.2f}%")
-                logger.info(f"Successfully displayed Gold futures: ${gold_current:,.2f}")
+            niftyit_data = data_fetcher.get_stock_data('NIFTYIT.NS')
+            if niftyit_data is not None and not niftyit_data.empty:
+                niftyit_current = float(niftyit_data.iloc[-1]['close'])
+                niftyit_prev = float(niftyit_data.iloc[-2]['close']) if len(niftyit_data) > 1 else niftyit_current
+                niftyit_change = ((niftyit_current - niftyit_prev) / niftyit_prev) * 100 if niftyit_prev != 0 else 0
+                st.metric("Nifty IT", f"₹{niftyit_current:,.2f}", f"{niftyit_change:+.2f}%")
+                logger.info(f"Successfully displayed Nifty IT: ₹{niftyit_current:,.2f}")
             else:
-                # Fallback to GLD ETF and convert to approximate gold price
-                gold_data = data_fetcher.get_stock_data('GLD')
-                if gold_data is not None and not gold_data.empty:
-                    gold_current = float(gold_data.iloc[-1]['close']) * 10.87  # Approximate conversion
-                    st.metric("Gold", f"${gold_current:,.2f}", "ETF-based")
+                niftyit_data = fallback.generate_stock_data('NIFTYIT.NS', days=2)
+                if not niftyit_data.empty:
+                    niftyit_current = float(niftyit_data.iloc[-1]['close'])
+                    st.metric("Nifty IT", f"₹{niftyit_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for Nifty IT")
                 else:
-                    st.metric("Gold", "Data unavailable", None)
-                    logger.warning("Gold data unavailable")
+                    st.metric("Nifty IT", "Data unavailable", None)
+                    logger.warning("Nifty IT data unavailable")
             
-            logger.info("Fetching Oil futures data")
-            # Try crude oil futures first, then fallback to USO ETF
-            oil_data = data_fetcher.get_stock_data('CL=F')
-            if oil_data is not None and not oil_data.empty:
-                oil_current = float(oil_data.iloc[-1]['close'])
-                oil_prev = float(oil_data.iloc[-2]['close']) if len(oil_data) > 1 else oil_current
-                oil_change = ((oil_current - oil_prev) / oil_prev) * 100 if oil_prev != 0 else 0
-                st.metric("Oil (WTI)", f"${oil_current:.2f}", f"{oil_change:+.2f}%")
-                logger.info(f"Successfully displayed Oil futures: ${oil_current:.2f}")
+            tcs_data = data_fetcher.get_stock_data('TCS.NS')
+            if tcs_data is not None and not tcs_data.empty:
+                tcs_current = float(tcs_data.iloc[-1]['close'])
+                tcs_prev = float(tcs_data.iloc[-2]['close']) if len(tcs_data) > 1 else tcs_current
+                tcs_change = ((tcs_current - tcs_prev) / tcs_prev) * 100 if tcs_prev != 0 else 0
+                st.metric("TCS", f"₹{tcs_current:,.2f}", f"{tcs_change:+.2f}%")
+                logger.info(f"Successfully displayed TCS: ₹{tcs_current:,.2f}")
             else:
-                # Fallback to USO ETF
-                oil_data = data_fetcher.get_stock_data('USO')
-                if oil_data is not None and not oil_data.empty:
-                    oil_current = float(oil_data.iloc[-1]['close'])
-                    st.metric("Oil (USO ETF)", f"${oil_current:.2f}", "ETF-based")
+                tcs_data = fallback.generate_stock_data('TCS.NS', days=2)
+                if not tcs_data.empty:
+                    tcs_current = float(tcs_data.iloc[-1]['close'])
+                    st.metric("TCS", f"₹{tcs_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for TCS")
                 else:
-                    st.metric("Oil", "Data unavailable", None)
-                    logger.warning("Oil data unavailable")
+                    st.metric("TCS", "Data unavailable", None)
+                    logger.warning("TCS data unavailable")
         except Exception as e:
-            st.error(f"Commodities data temporarily unavailable")
-            logger.error(f"Error loading commodities data: {str(e)}", exc_info=True)
+            st.error(f"IT sector data temporarily unavailable")
+            logger.error(f"Error loading IT sector data: {str(e)}", exc_info=True)
     
     with col4:
-        st.markdown("**🏛️ Fixed Income**")
+        st.markdown("**🛒 FMCG Sector**")
         try:
-            logger.info("Fetching Treasury yield data")
-            # Try 20-year treasury futures first, then fallback to TLT ETF
-            treasury_data = data_fetcher.get_stock_data('^TNX')  # 10-year note yield
-            if treasury_data is not None and not treasury_data.empty:
-                treasury_current = float(treasury_data.iloc[-1]['close'])
-                treasury_prev = float(treasury_data.iloc[-2]['close']) if len(treasury_data) > 1 else treasury_current
-                treasury_change = treasury_current - treasury_prev if treasury_prev != 0 else 0
-                st.metric("10Y Treasury", f"{treasury_current:.3f}%", f"{treasury_change:+.3f}")
-                logger.info(f"Successfully displayed 10Y Treasury yield: {treasury_current:.3f}%")
+            niftyfmcg_data = data_fetcher.get_stock_data('NIFTYFMCG.NS')
+            if niftyfmcg_data is not None and not niftyfmcg_data.empty:
+                niftyfmcg_current = float(niftyfmcg_data.iloc[-1]['close'])
+                niftyfmcg_prev = float(niftyfmcg_data.iloc[-2]['close']) if len(niftyfmcg_data) > 1 else niftyfmcg_current
+                niftyfmcg_change = ((niftyfmcg_current - niftyfmcg_prev) / niftyfmcg_prev) * 100 if niftyfmcg_prev != 0 else 0
+                st.metric("Nifty FMCG", f"₹{niftyfmcg_current:,.2f}", f"{niftyfmcg_change:+.2f}%")
+                logger.info(f"Successfully displayed Nifty FMCG: ₹{niftyfmcg_current:,.2f}")
             else:
-                # Fallback to TLT ETF price
-                tlt_data = data_fetcher.get_stock_data('TLT')
-                if tlt_data is not None and not tlt_data.empty:
-                    tlt_current = float(tlt_data.iloc[-1]['close'])
-                    st.metric("20Y Treasury ETF", f"${tlt_current:.2f}", "ETF price")
+                niftyfmcg_data = fallback.generate_stock_data('NIFTYFMCG.NS', days=2)
+                if not niftyfmcg_data.empty:
+                    niftyfmcg_current = float(niftyfmcg_data.iloc[-1]['close'])
+                    st.metric("Nifty FMCG", f"₹{niftyfmcg_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for Nifty FMCG")
                 else:
-                    st.metric("Treasury", "Data unavailable", None)
-                    logger.warning("Treasury data unavailable")
+                    st.metric("Nifty FMCG", "Data unavailable", None)
+                    logger.warning("Nifty FMCG data unavailable")
             
-            logger.info("Fetching High Yield Bond data")
-            hyg_data = data_fetcher.get_stock_data('HYG')
-            if hyg_data is not None and not hyg_data.empty:
-                hyg_current = float(hyg_data.iloc[-1]['close'])
-                hyg_prev = float(hyg_data.iloc[-2]['close']) if len(hyg_data) > 1 else hyg_current
-                hyg_change = ((hyg_current - hyg_prev) / hyg_prev) * 100 if hyg_prev != 0 else 0
-                st.metric("High Yield Bonds", f"${hyg_current:.2f}", f"{hyg_change:+.2f}%")
-                logger.info(f"Successfully displayed HYG: ${hyg_current:.2f}")
+            hindunilvr_data = data_fetcher.get_stock_data('HINDUNILVR.NS')
+            if hindunilvr_data is not None and not hindunilvr_data.empty:
+                hindunilvr_current = float(hindunilvr_data.iloc[-1]['close'])
+                hindunilvr_prev = float(hindunilvr_data.iloc[-2]['close']) if len(hindunilvr_data) > 1 else hindunilvr_current
+                hindunilvr_change = ((hindunilvr_current - hindunilvr_prev) / hindunilvr_prev) * 100 if hindunilvr_prev != 0 else 0
+                st.metric("Hindustan Unilever", f"₹{hindunilvr_current:,.2f}", f"{hindunilvr_change:+.2f}%")
+                logger.info(f"Successfully displayed Hindustan Unilever: ₹{hindunilvr_current:,.2f}")
             else:
-                st.metric("High Yield Bonds", "Data unavailable", None)
-                logger.warning("HYG data unavailable")
+                hindunilvr_data = fallback.generate_stock_data('HINDUNILVR.NS', days=2)
+                if not hindunilvr_data.empty:
+                    hindunilvr_current = float(hindunilvr_data.iloc[-1]['close'])
+                    st.metric("Hindustan Unilever", f"₹{hindunilvr_current:,.2f}", "Synthetic data")
+                    logger.warning("Using synthetic data for Hindustan Unilever")
+                else:
+                    st.metric("Hindustan Unilever", "Data unavailable", None)
+                    logger.warning("Hindustan Unilever data unavailable")
         except Exception as e:
-            st.error(f"Fixed income data temporarily unavailable")
-            logger.error(f"Error loading bond data: {str(e)}", exc_info=True)
+            st.error(f"FMCG sector data temporarily unavailable")
+            logger.error(f"Error loading FMCG sector data: {str(e)}", exc_info=True)
     
     st.markdown("---")
     
     # Economic indicators section
-    st.subheader("📈 Economic Indicators")
+    st.subheader("📈 Indian Economic Indicators")
     
     col_econ1, col_econ2 = st.columns(2)
     
     with col_econ1:
         st.markdown("**Key Economic Data**")
         try:
-            # Display current economic indicators
-            st.metric("Fed Funds Rate", "5.25-5.50%", "0.00%")
-            st.metric("Inflation (CPI)", "3.1%", "-0.2%") 
-            st.metric("Unemployment", "3.7%", "+0.1%")
-            st.metric("GDP Growth", "2.4%", "+0.3%")
-            st.metric("Dollar Index", "108.2", "+0.8")
-            st.metric("VIX Volatility", "14.2", "-1.3")
+            # Fetch or use cached economic indicators from DatabaseManager
+            if db.is_available():
+                cursor = db.conn.cursor()
+                query = """
+                    SELECT indicator_name, value, change
+                    FROM economic_indicators
+                    WHERE country = 'India'
+                    ORDER BY updated_at DESC
+                    LIMIT 6
+                """
+                cursor.execute(query)
+                results = cursor.fetchall()
+                cursor.close()
+                
+                if results:
+                    for indicator, value, change in results:
+                        st.metric(indicator, value, f"{float(change):+.2f}%")
+                else:
+                    # Fallback to static or real-time data
+                    st.metric("RBI Repo Rate", "6.50%", "0.00%")
+                    st.metric("CPI Inflation", "5.1%", "-0.2%")
+                    st.metric("Unemployment Rate", "7.8%", "+0.1%")
+                    st.metric("GDP Growth (YoY)", "7.6%", "+0.4%")
+                    st.metric("INR/USD", "83.50", "+0.10")
+                    st.metric("India VIX", "14.5", "-1.2")
+                    logger.info("Displayed fallback economic indicators")
+            else:
+                st.metric("RBI Repo Rate", "6.50%", "0.00%")
+                st.metric("CPI Inflation", "5.1%", "-0.2%")
+                st.metric("Unemployment Rate", "7.8%", "+0.1%")
+                st.metric("GDP Growth (YoY)", "7.6%", "+0.4%")
+                st.metric("INR/USD", "83.50", "+0.10")
+                st.metric("India VIX", "14.5", "-1.2")
+                logger.info("Displayed static economic indicators due to database unavailability")
         except Exception as e:
             logger.error(f"Error displaying economic indicators: {str(e)}")
             st.warning("Economic data temporarily unavailable")
     
     with col_econ2:
-        st.markdown("**Market News Summary**")
+        st.markdown("**Indian Market News Summary**")
         try:
-            # Display current market news context
-            st.write("**📊 Fed Maintains Interest Rates at 5.25-5.50%**")
-            st.write("The Federal Reserve continues its cautious approach to monetary policy amid ongoing economic uncertainties...")
-            st.markdown("---")
-            
-            st.write("**💻 Technology Sector Shows Resilience**")
-            st.write("Major tech stocks continue to outperform broader markets, driven by AI developments and strong earnings...")
-            st.markdown("---")
-            
-            st.write("**🥇 Commodity Markets React to Global Conditions**")
-            st.write("Gold and oil prices fluctuate as investors weigh inflation concerns against economic growth prospects...")
+            # Fetch news or analysis from AIAnalyzer
+            news_summary = ai_analyzer.get_market_analysis("Summarize recent Indian market news affecting Nifty 50 and key sectors")
+            if news_summary and news_summary != "AI analysis not available":
+                st.write(news_summary)
+                # Store in DatabaseManager
+                if db.is_available():
+                    cursor = db.conn.cursor()
+                    query = """
+                        INSERT INTO market_news (timestamp, summary, source)
+                        VALUES (?, ?, ?)
+                    """ if db.db_type == "sqlite" else """
+                        INSERT INTO market_news (timestamp, summary, source)
+                        VALUES (%s, %s, %s)
+                    """
+                    cursor.execute(query, (datetime.now().isoformat(), news_summary, 'AIAnalyzer'))
+                    db.conn.commit()
+                    cursor.close()
+            else:
+                # Fallback to static news
+                st.write("**🏦 RBI Maintains Repo Rate at 6.50%**")
+                st.write("The Reserve Bank of India continues its balanced approach to support growth while monitoring inflation...")
+                st.markdown("---")
+                st.write("**💻 IT Sector Gains Momentum**")
+                st.write("Indian IT stocks rally due to strong global demand for digital services...")
+                st.markdown("---")
+                st.write("**🛒 FMCG Sector Stable**")
+                st.write("FMCG companies show resilience amid steady consumer demand...")
+                logger.info("Displayed fallback market news")
         except Exception as e:
             logger.error(f"Error displaying market news: {str(e)}")
             st.warning("News data temporarily unavailable")
@@ -244,92 +333,99 @@ def main():
     st.markdown("---")
     
     # AI Market Analysis
-    st.subheader("🧠 AI-Powered Market Analysis")
+    st.subheader("🧠 AI-Powered Indian Market Analysis")
     
-    if st.button("🚀 Generate Comprehensive Market Analysis", type="primary", use_container_width=True):
-        with st.spinner("AI is analyzing global markets across all asset classes..."):
+    if st.button("🚀 Generate Comprehensive Indian Market Analysis", type="primary", use_container_width=True):
+        with st.spinner("AI is analyzing Indian markets and sectors..."):
             try:
-                # Gather market context
                 market_context = {
                     'timestamp': datetime.now().isoformat(),
-                    'asset_classes': ['equity', 'crypto', 'commodities', 'bonds', 'forex'],
-                    'economic_indicators': {},
-                    'market_news': []
+                    'asset_classes': ['equity'],
+                    'indices': ['^NSEI', '^BSESN', 'NIFTYIT.NS', 'BANKNIFTY.NS', 'NIFTYFMCG.NS'],
+                    'stocks': ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'HINDUNILVR.NS']
                 }
-                
-                analysis = ai_analyzer.get_market_analysis(market_context)
+                analysis = ai_analyzer.get_market_analysis(f"Analyze the Indian stock market, focusing on Nifty 50, Sensex, and key sectors: {market_context['indices']}")
                 
                 if analysis and analysis != "AI analysis not available":
                     st.success("✅ Analysis Complete")
-                    st.markdown("### Marcus Wellington's Market Outlook")
+                    st.markdown("### AI-Powered Indian Market Outlook")
                     st.write(analysis)
                     
-                    # Store analysis in session for later use
+                    # Store in DatabaseManager
+                    if db.is_available():
+                        cursor = db.conn.cursor()
+                        query = """
+                            INSERT INTO market_analysis (timestamp, analysis, source)
+                            VALUES (?, ?, ?)
+                        """ if db.db_type == "sqlite" else """
+                            INSERT INTO market_analysis (timestamp, analysis, source)
+                            VALUES (%s, %s, %s)
+                        """
+                        cursor.execute(query, (datetime.now().isoformat(), analysis, 'AIAnalyzer'))
+                        db.conn.commit()
+                        cursor.close()
+                    
                     st.session_state.latest_market_analysis = analysis
                 else:
                     st.error("Market analysis temporarily unavailable")
-                    
+                    logger.warning("AI market analysis returned empty or unavailable")
             except Exception as e:
                 st.error(f"Error generating analysis: {str(e)}")
+                logger.error(f"Error generating AI market analysis: {str(e)}")
     
     # Display cached analysis if available
     if 'latest_market_analysis' in st.session_state:
-        with st.expander("📋 Latest Analysis"):
+        with st.expander("📋 Latest Market Analysis"):
             st.write(st.session_state.latest_market_analysis)
     
     st.markdown("---")
     
     # Sector performance
-    st.subheader("🏢 Sector Performance")
+    st.subheader("🏢 Indian Sector Performance")
     
     try:
-        # Get sector performance using ETF data
-        logger.info("Fetching sector performance data")
-        
-        # Current S&P 500 sector performance (based on recent market trends)
-        st.info("📈 Sector performance based on recent market trends and cached data")
+        logger.info("Fetching Indian sector performance data")
         sectors = {
-            'Technology': 1.2,
-            'Healthcare': 0.8,
-            'Financial': 0.5,
-            'Consumer Discretionary': -0.3,
-            'Communication': 0.9,
-            'Industrials': 0.2,
-            'Energy': -1.1,
-            'Utilities': -0.5,
-            'Real Estate': -0.7,
-            'Materials': 0.1,
-            'Consumer Staples': 0.3
+            'Nifty IT': 'NIFTYIT.NS',
+            'Nifty Bank': 'BANKNIFTY.NS',
+            'Nifty FMCG': 'NIFTYFMCG.NS',
+            'Nifty Auto': 'NIFTYAUTO.NS',
+            'Nifty Pharma': 'NIFTYPHARMA.NS'
         }
         
-        # Try to get some real ETF data for major sectors
-        try:
-            sector_etfs = {'Technology': 'XLK', 'Healthcare': 'XLV', 'Financial': 'XLF'}
-            for sector_name, etf_symbol in sector_etfs.items():
-                etf_data = data_fetcher.get_stock_data(etf_symbol)
-                if etf_data is not None and not etf_data.empty and len(etf_data) > 1:
-                    current_price = etf_data['close'].iloc[-1]
-                    prev_price = etf_data['close'].iloc[-2]
+        sector_performance = {}
+        for sector_name, ticker in sectors.items():
+            try:
+                data = data_fetcher.get_stock_data(ticker)
+                if data.empty:
+                    data = fallback.generate_stock_data(ticker, days=2)
+                if not data.empty and len(data) > 1:
+                    current_price = float(data['close'].iloc[-1])
+                    prev_price = float(data['close'].iloc[-2])
                     performance = ((current_price - prev_price) / prev_price) * 100
-                    sectors[sector_name] = round(performance, 2)
+                    sector_performance[sector_name] = round(performance, 2)
                     logger.info(f"Updated {sector_name} with real data: {performance:.2f}%")
-        except Exception as etf_error:
-            logger.warning(f"Could not fetch some ETF data: {etf_error}")
+                else:
+                    sector_performance[sector_name] = 0.0
+                    logger.warning(f"No data for {sector_name} ({ticker})")
+            except Exception as e:
+                sector_performance[sector_name] = 0.0
+                logger.warning(f"Error fetching data for {sector_name} ({ticker}): {str(e)}")
         
         # Create sector performance chart
-        sector_names = list(sectors.keys())
-        performances = list(sectors.values())
+        sector_names = list(sector_performance.keys())
+        performances = list(sector_performance.values())
         
         fig = px.bar(
             x=performances,
             y=sector_names,
             orientation='h',
-            title="S&P 500 Sector Performance Today",
+            title="Indian Sector Performance Today",
             labels={'x': 'Performance (%)', 'y': 'Sectors'},
             color=performances,
             color_continuous_scale='RdYlGn'
         )
-        fig.update_layout(height=500, showlegend=False)
+        fig.update_layout(height=400, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
         
         # Display sector details
@@ -337,21 +433,21 @@ def main():
         
         with col1:
             st.markdown("**Top Performers**")
-            top_sectors = sorted(sectors.items(), key=lambda x: x[1], reverse=True)[:3]
+            top_sectors = sorted(sector_performance.items(), key=lambda x: x[1], reverse=True)[:3]
             for sector, perf in top_sectors:
                 st.write(f"📈 {sector}: +{perf:.1f}%")
         
         with col2:
             st.markdown("**Bottom Performers**")
-            bottom_sectors = sorted(sectors.items(), key=lambda x: x[1])[:3]
+            bottom_sectors = sorted(sector_performance.items(), key=lambda x: x[1])[:3]
             for sector, perf in bottom_sectors:
                 st.write(f"📉 {sector}: {perf:.1f}%")
         
         with col3:
             st.markdown("**Market Notes**")
-            st.write("• Tech leading gains")
-            st.write("• Energy under pressure")
-            st.write("• Mixed sentiment overall")
+            st.write("• IT sector driven by global demand")
+            st.write("• Banking stable with RBI policy")
+            st.write("• FMCG resilient amid inflation")
         
     except Exception as e:
         logger.error(f"Error loading sector performance: {str(e)}")
@@ -362,15 +458,14 @@ def main():
     st.sidebar.subheader("📊 Database Status")
     
     try:
-        db_manager = DatabaseManager()
-        if db_manager.is_available():
-            asset_count = len(db_manager.get_asset_universe())
+        if db.is_available():
+            asset_count = len(db.get_asset_universe())
             st.sidebar.metric("Assets Tracked", asset_count)
             st.sidebar.success("Database Connected")
         else:
             st.sidebar.error("Database Offline")
     except Exception as e:
-        st.sidebar.error("Database Error")
+        st.sidebar.error(f"Database Error: {str(e)}")
 
 if __name__ == "__main__":
     main()

@@ -1,176 +1,153 @@
-# AI-Powered Portfolio Management System
+# AI-Powered Portfolio Manager for the Indian Market
 
-A sophisticated AI-powered portfolio management system built with Streamlit that combines real-time market data analysis, AI insights, and comprehensive portfolio analytics for retail investors.
+**Version 1.0.0**
 
-## Features
+An advanced portfolio management system built with Streamlit, specifically designed for the Indian stock market. This application integrates real-time market data, AI-driven analysis via the Google Gemini API, and comprehensive portfolio analytics to provide actionable insights for investors focused on Indian equities.
 
-- **AI-Powered Analysis**: Uses Anthropic's Claude AI for intelligent market analysis and investment recommendations
-- **Multi-Asset Support**: Stocks, cryptocurrencies, bonds, commodities, forex, and real estate
-- **Real-Time Data**: Live market data from Alpha Vantage and CoinGecko APIs
-- **Future Predictions**: 1, 5, and 10-year portfolio value projections
-- **Manual Portfolio Input**: Easy-to-use interface for entering your existing investments
-- **Comprehensive Analysis**: Risk assessment, sector allocation, and rebalancing recommendations
+---
 
-## Demo
+## Table of Contents
 
-You can try the live application at: [Your Streamlit App URL]
+- [Core Features](#core-features)
+- [Technology Stack](#technology-stack)
+- [System Requirements](#system-requirements)
+- [Installation Guide](#installation-guide)
+- [Configuration](#configuration)
+- [Running the Application](#running-the-application)
+- [Project Architecture](#project-architecture)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Quick Start
+---
 
-### Prerequisites
+## Core Features
 
-- Python 3.8 or higher
-- API keys for:
-  - Anthropic Claude API (required)
-  - Alpha Vantage API (required - free tier available)
-  - CoinGecko API (optional - for enhanced crypto data)
-  - Finnhub API (optional - for stock data backup)
+-   **India-Market Focus**: All analytics, data fetching, and financial calculations are tailored to the Indian market, including NSE/BSE stocks and sectoral indices, with all monetary values in INR.
 
-### Installation
+-   **AI-Driven Analysis**: Utilizes Google's Gemini API to provide deep, context-aware analysis of market conditions, stock performance, and portfolio construction strategies.
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/ai-portfolio-manager.git
-cd ai-portfolio-manager
-```
+-   **Interactive Dashboards**: A multi-page application structure provides dedicated interfaces for:
+    -   **Market Analysis**: A real-time dashboard tracking the Nifty 50, Sensex, and key sectoral indices with live price data.
+    -   **AI Portfolio Agent**: An interactive tool for generating optimized portfolios, conducting market research, and simulating trading strategies.
+    -   **Data Management**: A powerful interface for querying, visualizing, and exporting market and portfolio data stored in the application's database.
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+-   **Quantitative Stock Screening**: A proprietary engine screens and scores Indian stocks based on **Quality, Value, Growth, and Momentum (QVGM)** metrics to identify high-potential investment opportunities.
 
-3. Set up environment variables:
-```bash
-cp .env.example .env
-```
+-   **Reinforcement Learning Environment**: Includes a DRL trading environment (using OpenAI Gym and TensorFlow) to simulate and test AI-based trading strategies on historical Indian market data.
 
-4. Edit `.env` file and add your API keys:
-```
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key_here
-COINGECKO_API_KEY=your_coingecko_api_key_here  # Optional
-FINNHUB_API_KEY=your_finnhub_api_key_here      # Optional
-DATABASE_URL=your_postgresql_url_here          # Optional
-```
+-   **Database Integration**: Features a local SQLite database for efficient data caching and persistence, with support for production-grade PostgreSQL environments.
 
-5. Run the application:
-```bash
-streamlit run app.py
-```
+---
 
-## API Keys Setup
+## Technology Stack
 
-### Anthropic API Key
-1. Go to [Anthropic Console](https://console.anthropic.com/)
-2. Create an account and get your API key
-3. Add it to your `.env` file
+| Category             | Technologies Used                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| **Frontend Framework** | Streamlit                                                                             |
+| **AI Engine**        | Google Gemini Pro                                                                     |
+| **Data Sources**     | `yfinance`, Finnhub API                                                               |
+| **Data Analytics**   | Pandas, NumPy                                                                         |
+| **Visualization**    | Plotly Express                                                                        |
+| **Machine Learning** | TensorFlow, Keras, OpenAI Gym                                                         |
+| **Database**         | SQLite (Default), PostgreSQL (Production Option)                                      |
 
-### Alpha Vantage API Key
-1. Go to [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
-2. Get a free API key (500 requests/day)
-3. Add it to your `.env` file
+---
 
-### Optional API Keys
+## System Requirements
 
-#### CoinGecko API Key
-1. Go to [CoinGecko API](https://www.coingecko.com/en/api/pricing)
-2. Free tier: 10,000 requests/month
-3. Pro tier: Enhanced data and higher limits
+-   Python 3.8 or higher
+-   Git version control
+-   Active API Keys for:
+    -   Google Gemini
+    -   Finnhub
 
-#### Finnhub API Key
-1. Go to [Finnhub](https://finnhub.io/register)
-2. Free tier: 60 requests/minute
-3. Used as backup for stock data when Alpha Vantage hits limits
+---
 
-#### Database Configuration (Automatic)
-1. **Default**: SQLite database (automatic, no setup required)
-   - Lightweight file-based database stored in `data/portfolio_manager.db`
-   - Perfect for development and small-scale deployments
-2. **Production**: PostgreSQL (optional upgrade)
-   - Set DATABASE_URL to your PostgreSQL connection string
-   - Format: `postgresql://username:password@host:port/database`
-   - Providers: Neon, Supabase, Railway, etc.
-   - Automatically detected when DATABASE_URL is set
+## Installation Guide
 
-## Deployment
+Execute the following commands to set up the project environment.
 
-### Streamlit Cloud
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/DipayanDasgupta/india-ai-portfolio-manager.git
+    cd india-ai-portfolio-manager
+    ```
 
-1. Fork this repository to your GitHub account
-2. Go to [Streamlit Cloud](https://share.streamlit.io/)
-3. Connect your GitHub account
-4. Deploy from your forked repository
-5. Add your API keys in the Streamlit Cloud secrets management:
-   - Go to your app settings
-   - Add secrets in the format:
-   ```toml
-   ANTHROPIC_API_KEY = "your_key_here"
-   ALPHA_VANTAGE_API_KEY = "your_key_here"
-   COINGECKO_API_KEY = "your_key_here"      # Optional
-   FINNHUB_API_KEY = "your_key_here"        # Optional
-   DATABASE_URL = "your_postgres_url_here"  # Optional
-   ```
+2.  **Create and activate a Python virtual environment:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+    *For Windows, use: `venv\Scripts\activate`*
 
-### Local Development
+3.  **Install all required dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-The application runs on `http://localhost:8501` by default when using `streamlit run app.py`.
+---
 
-## Usage
+## Configuration
 
-1. **Market Analysis**: View real-time market data and AI-powered insights
-2. **Manual Portfolio Input**: 
-   - Enter your portfolio name
-   - Add investments by name and amount
-   - Get comprehensive AI analysis with future predictions
-3. **AI Recommendations**: Receive specific investment suggestions across all asset classes
+1.  **Create the environment configuration file** from the provided template. This file stores your API keys securely and is ignored by Git.
+    ```bash
+    cp .env.example .env
+    ```
 
-## Project Structure
+2.  **Edit the `.env` file** with a text editor and populate it with your valid API keys.
 
-```
-├── app.py                 # Main Streamlit application
-├── components/            # UI components
-│   ├── AI_Agent.py       # Portfolio analysis interface
-│   ├── Market_Analysis.py # Market data dashboard
-│   └── Data_Management.py # Database management
-├── utils/                 # Core utilities
-│   ├── ai_analyzer.py    # AI analysis engine
-│   ├── data_fetcher.py   # Market data fetching
-│   ├── autonomous_agent.py # Advanced AI agent
-│   └── portfolio_optimizer.py # Portfolio optimization
-├── requirements.txt       # Python dependencies
-├── .env.example          # Environment variables template
-└── README.md            # This file
-```
+    ```env
+    # Required: Get your key from Google AI Studio (https://aistudio.google.com/app/apikey)
+    GEMINI_API_KEY="your-google-gemini-api-key"
 
-## Technologies Used
+    # Required: Get your free key from Finnhub (https://finnhub.io/register)
+    FINNHUB_API_KEY="your-finnhub-api-key"
 
-- **Frontend**: Streamlit
-- **AI**: Anthropic Claude API
-- **Data Sources**: Alpha Vantage, CoinGecko
-- **Analytics**: Pandas, NumPy, SciPy
-- **Visualization**: Plotly
+    # Optional: For production-grade database. If left commented, a local SQLite DB will be used.
+    # DATABASE_URL="postgresql://user:password@host:port/dbname"
+    ```
+
+---
+
+## Running the Application
+
+1.  **Initialize the Database:** If you are running the application for the first time or after a schema change, it is recommended to remove the old database file to ensure the correct schema is created.
+    ```bash
+    rm -f data/portfolio_manager.db
+    ```
+
+2.  **Launch the Streamlit server:**
+    ```bash
+    streamlit run app.py
+    ```
+    The application will be accessible in your web browser, typically at `http://localhost:8501`.
+
+---
+
+## Project Architecture
+
+The codebase is organized into modular directories to separate concerns and enhance maintainability.
+
+-   `app.py`: The main application entry point that handles routing and global component initialization.
+-   `components/`: Contains the Python scripts for each user-facing page of the Streamlit application.
+-   `utils/`: A collection of backend modules containing the core business logic, including data fetching, AI analysis, database management, and quantitative modeling.
+-   `requirements.txt`: A list of all Python package dependencies.
+-   `.env`: A local file for storing secret API keys (not tracked by Git).
+
+---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions to enhance the functionality and performance of this application. Please follow the standard fork-and-pull-request workflow.
+
+1.  Fork the repository.
+2.  Create a new branch for your feature or bugfix.
+3.  Commit your changes with clear, descriptive messages.
+4.  Push your branch to your forked repository.
+5.  Open a pull request against the main repository branch.
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-If you encounter any issues or have questions:
-1. Check the existing [Issues](https://github.com/yourusername/ai-portfolio-manager/issues)
-2. Create a new issue with detailed information about your problem
-3. Include your Python version and any error messages
-
-## Acknowledgments
-
-- Powered by Anthropic's Claude AI
-- Market data provided by Alpha Vantage and CoinGecko
-- Built with Streamlit framework
+This project is licensed under the MIT License. See the `LICENSE` file for full details.

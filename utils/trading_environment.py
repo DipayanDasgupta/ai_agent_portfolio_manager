@@ -1,3 +1,4 @@
+import logging
 import gym
 from gym import spaces
 import numpy as np
@@ -9,33 +10,36 @@ import json
 from datetime import datetime, timedelta
 import streamlit as st
 from .data_fetcher import DataFetcher
-from .autonomous_agent import AutonomousPortfolioAgent
+from .database_manager import DatabaseManager
+from .risk_calculator import RiskCalculator
 
 class TradingEnvironment(gym.Env):
     """
-    Deep Reinforcement Learning Trading Environment
+    Deep Reinforcement Learning Trading Environment for Indian Stocks
     State: Market data, portfolio status, technical indicators
-    Actions: Buy, Sell, Hold for multiple assets
+    Actions: Buy, Sell, Hold for Indian stocks
     Reward: Portfolio returns with risk adjustment
     """
     
     def __init__(self, 
-                 symbols=['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'BTC-USD'],
-                 initial_capital=100000,
+                 symbols=['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS'],
+                 initial_capital=1000000,  # INR
                  lookback_window=60,
                  transaction_cost=0.001):
         
         super(TradingEnvironment, self).__init__()
         
         self.symbols = symbols
-        self.initial_capital = initial_capital
+        self.initial_capital = initial_capital  # INR
         self.lookback_window = lookback_window
         self.transaction_cost = transaction_cost
         
-        # Initialize data fetcher
+        # Initialize data fetcher and database
         self.data_fetcher = DataFetcher()
+        self.db_manager = DatabaseManager()
+        self.risk_calculator = RiskCalculator(symbols, market_index='^NSEI')
         
-        # Action space: [position_change] for each asset
+        # Action space: [position_change] for each stock
         # -1 = sell all, 0 = hold, +1 = buy with available cash
         self.action_space = spaces.Box(
             low=-1, high=1, 
@@ -44,10 +48,10 @@ class TradingEnvironment(gym.Env):
         )
         
         # Observation space: [price_features, technical_indicators, portfolio_state]
-        # Price features: OHLCV for each asset (5 * n_assets)
-        # Technical indicators: RSI, MACD, Bollinger Bands (3 * n_assets)
-        # Portfolio state: current_positions, cash_ratio, total_return
-        obs_dim = len(symbols) * 8 + 3  # 8 features per asset + 3 portfolio features
+        # Price features: OHLCV for each stock (5 * n_stocks)
+        # Technical indicators: RSI, MACD, Momentum (3 * n_stocks)
+        # Portfolio state: cash_ratio, total_return, beta
+        obs_dim = len(symbols) * 8 + 3  # 8 features per stock + 3 portfolio features
         
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf,
@@ -75,25 +79,22 @@ class TradingEnvironment(gym.Env):
         return observation
     
     def _load_market_data(self):
-        """Load historical market data for training"""
+        """Load historical market data for Indian stocks"""
         self.market_data = {}
         
         for symbol in self.symbols:
             try:
-                if symbol == 'BTC-USD':
-                    data = self.data_fetcher.get_crypto_data('BTC')
-                else:
-                    data = self.data_fetcher.get_stock_data(symbol)
-                
+                data = self.data_fetcher.get_stock_data(symbol)
                 if data is not None and not data.empty:
-                    # Ensure we have enough data
+                    # Ensure sufficient data
                     if len(data) > self.lookback_window + 100:
                         self.market_data[symbol] = data
+                        # Store in database
+                        self.db_manager.store_market_data(symbol, 'stock', data)
                     else:
                         st.warning(f"Insufficient data for {symbol}")
                 else:
                     st.warning(f"No data available for {symbol}")
-            
             except Exception as e:
                 st.error(f"Error loading data for {symbol}: {str(e)}")
         
@@ -103,6 +104,11 @@ class TradingEnvironment(gym.Env):
         
         # Find common date range
         all_indices = [data.index for data in self.market_data.values()]
+        if not all_indices:
+             st.error("Market data could not be loaded for any symbols.")
+             self.common_dates = pd.Index([])
+             return
+
         self.common_dates = all_indices[0]
         for idx in all_indices[1:]:
             self.common_dates = self.common_dates.intersection(idx)
@@ -118,7 +124,7 @@ class TradingEnvironment(gym.Env):
     def _get_observation(self):
         """Get current environment observation"""
         if not hasattr(self, 'common_dates') or len(self.common_dates) == 0:
-            return np.zeros(self.observation_space.shape[0])
+            return np.zeros(self.observation_space.shape[0], dtype=np.float32)
         
         current_date = self.common_dates[min(self.current_step + self.lookback_window, len(self.common_dates) - 1)]
         
@@ -133,7 +139,7 @@ class TradingEnvironment(gym.Env):
                 try:
                     current_row = data.loc[current_date]
                     
-                    # OHLCV features (normalized)
+                    # OHLCV features (normalized, INR)
                     close_price = float(current_row['close'])
                     open_price = float(current_row['open'])
                     high_price = float(current_row['high'])
@@ -142,20 +148,18 @@ class TradingEnvironment(gym.Env):
                     
                     # Normalize prices relative to close
                     obs_features = [
-                        (open_price - close_price) / close_price,
-                        (high_price - close_price) / close_price,
-                        (low_price - close_price) / close_price,
-                        np.log(volume + 1) / 20,  # Log-normalized volume
+                        (open_price - close_price) / close_price if close_price > 0 else 0,
+                        (high_price - close_price) / close_price if close_price > 0 else 0,
+                        (low_price - close_price) / close_price if close_price > 0 else 0,
+                        np.log(volume + 1) / 20 if volume > 0 else 0,  # Log-normalized volume
                     ]
                     
                     # Technical indicators
                     tech_indicators = self._calculate_technical_indicators(symbol, current_date)
                     obs_features.extend(tech_indicators)
                     
-                except:
-                    # If data not available, use zeros
+                except KeyError:
                     obs_features = [0.0] * 8
-                
             else:
                 obs_features = [0.0] * 8
             
@@ -166,7 +170,10 @@ class TradingEnvironment(gym.Env):
         cash_ratio = self.cash / self.portfolio_value if self.portfolio_value > 0 else 0
         total_return = (self.portfolio_value - self.initial_capital) / self.initial_capital
         
-        portfolio_features = [cash_ratio, total_return, total_invested / self.portfolio_value if self.portfolio_value > 0 else 0]
+        # Get portfolio beta from RiskCalculator
+        portfolio_beta = self._calculate_portfolio_beta()
+        
+        portfolio_features = [cash_ratio, total_return, portfolio_beta]
         observation.extend(portfolio_features)
         
         return np.array(observation, dtype=np.float32)
@@ -174,7 +181,7 @@ class TradingEnvironment(gym.Env):
     def _calculate_technical_indicators(self, symbol, current_date):
         """Calculate technical indicators for a symbol"""
         if symbol not in self.market_data:
-            return [0.0, 0.0, 0.0, 0.0]
+            return [0.0, 0.0, 0.0]
         
         data = self.market_data[symbol]
         
@@ -182,8 +189,8 @@ class TradingEnvironment(gym.Env):
             # Get historical data up to current date
             hist_data = data[data.index <= current_date].tail(30)
             
-            if len(hist_data) < 14:
-                return [0.0, 0.0, 0.0, 0.0]
+            if len(hist_data) < 20:
+                return [0.0, 0.0, 0.0]
             
             closes = hist_data['close'].values
             
@@ -191,8 +198,8 @@ class TradingEnvironment(gym.Env):
             rsi = self._calculate_rsi(closes)
             
             # Simple moving averages
-            sma_10 = np.mean(closes[-10:]) if len(closes) >= 10 else closes[-1]
-            sma_20 = np.mean(closes[-20:]) if len(closes) >= 20 else closes[-1]
+            sma_10 = np.mean(closes[-10:])
+            sma_20 = np.mean(closes[-20:])
             
             current_price = closes[-1]
             
@@ -200,12 +207,12 @@ class TradingEnvironment(gym.Env):
             ma_signal = (sma_10 - sma_20) / current_price if current_price > 0 else 0
             
             # Price momentum (20-day)
-            momentum = (current_price - closes[0]) / closes[0] if len(closes) >= 20 and closes[0] > 0 else 0
+            momentum = (current_price - closes[0]) / closes[0] if closes[0] > 0 else 0
             
-            return [rsi / 100, ma_signal, momentum, 0.0]  # Normalized values
+            return [rsi / 100.0, ma_signal, momentum]  # Normalized values
         
-        except:
-            return [0.0, 0.0, 0.0, 0.0]
+        except Exception:
+            return [0.0, 0.0, 0.0]
     
     def _calculate_rsi(self, prices, period=14):
         """Calculate Relative Strength Index"""
@@ -223,9 +230,25 @@ class TradingEnvironment(gym.Env):
             return 100.0
         
         rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
+        rsi = 100.0 - (100.0 / (1.0 + rs))
         
         return rsi
+    
+    def _calculate_portfolio_beta(self):
+        """Calculate portfolio beta using RiskCalculator"""
+        try:
+            weights = {}
+            total_value = sum(self.position_values.values())
+            for symbol in self.symbols:
+                weights[symbol] = self.position_values.get(symbol, 0) / total_value if total_value > 0 else 0
+            
+            portfolio_beta = self.risk_calculator.calculate_portfolio_beta(weights)
+            return portfolio_beta if portfolio_beta is not None else 1.0
+        except Exception as e:
+            # Using the logger from the DRLTrainer class instance
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error calculating portfolio beta: {str(e)}")
+            return 1.0
     
     def step(self, action):
         """Execute one step in the environment"""
@@ -247,10 +270,27 @@ class TradingEnvironment(gym.Env):
         # Calculate portfolio metrics for info
         info = {
             'portfolio_value': self.portfolio_value,
-            'total_return': (self.portfolio_value - self.initial_capital) / self.initial_capital,
+            'total_return': (self.portfolio_value - self.initial_capital) / self.initial_capital if self.initial_capital > 0 else 0,
             'positions': self.positions.copy(),
-            'cash': self.cash
+            'cash': self.cash,
+            'portfolio_beta': self._calculate_portfolio_beta()
         }
+        
+        # Store portfolio state in DatabaseManager
+        if self.db_manager.is_available():
+            current_date = self.common_dates[min(self.current_step, len(self.common_dates)-1)]
+            allocation = {}
+            for symbol in self.symbols:
+                if symbol in self.market_data and current_date in self.market_data[symbol].index:
+                     allocation[symbol] = self.positions[symbol] * self.market_data[symbol].loc[current_date, 'close'] / self.portfolio_value if self.portfolio_value > 0 else 0
+
+            self.db_manager.store_portfolio_recommendation(
+                user_session=f"drl_session_{datetime.now().isoformat()}",
+                investment_amount=self.portfolio_value,
+                risk_profile="DRL",
+                recommended_allocation=allocation,
+                ai_analysis=f"DRL episode {self.current_step}, total return: {info['total_return']:.2%}"
+            )
         
         return observation, reward, done, info
     
@@ -266,58 +306,53 @@ class TradingEnvironment(gym.Env):
         
         # Calculate current position values
         for i, symbol in enumerate(self.symbols):
-            if symbol in self.market_data and self.positions[symbol] > 0:
-                try:
-                    current_price = float(self.market_data[symbol].loc[current_date, 'close'])
-                    position_value = self.positions[symbol] * current_price
-                    self.position_values[symbol] = position_value
-                    total_portfolio_value += position_value
-                except:
-                    self.position_values[symbol] = 0
+            if symbol in self.market_data and self.positions[symbol] > 0 and current_date in self.market_data[symbol].index:
+                current_price = float(self.market_data[symbol].loc[current_date, 'close'])
+                position_value = self.positions[symbol] * current_price
+                self.position_values[symbol] = position_value
+                total_portfolio_value += position_value
         
         previous_portfolio_value = self.portfolio_value
         self.portfolio_value = total_portfolio_value
         
         # Execute trades based on action
         for i, symbol in enumerate(self.symbols):
-            if symbol in self.market_data:
-                try:
-                    current_price = float(self.market_data[symbol].loc[current_date, 'close'])
-                    action_value = action[i]
-                    
-                    # Determine trade action
-                    if action_value > 0.1:  # Buy signal
-                        # Use portion of available cash
-                        cash_to_use = self.cash * min(action_value, 0.5)  # Max 50% of cash per trade
-                        if cash_to_use > 100:  # Minimum trade size
-                            shares_to_buy = cash_to_use / current_price
-                            transaction_cost = cash_to_use * self.transaction_cost
-                            
-                            self.positions[symbol] += shares_to_buy
-                            self.cash -= (cash_to_use + transaction_cost)
-                    
-                    elif action_value < -0.1 and self.positions[symbol] > 0:  # Sell signal
-                        # Sell portion of position
-                        shares_to_sell = self.positions[symbol] * min(abs(action_value), 1.0)
-                        if shares_to_sell > 0:
-                            sale_value = shares_to_sell * current_price
-                            transaction_cost = sale_value * self.transaction_cost
-                            
-                            self.positions[symbol] -= shares_to_sell
-                            self.cash += (sale_value - transaction_cost)
+            if symbol in self.market_data and current_date in self.market_data[symbol].index:
+                current_price = float(self.market_data[symbol].loc[current_date, 'close'])
+                action_value = action[i]
                 
-                except Exception as e:
-                    pass  # Skip problematic trades
+                # Determine trade action
+                if action_value > 0.1:  # Buy signal
+                    cash_to_use = self.cash * min(action_value, 0.5)  # Max 50% of cash per trade
+                    if cash_to_use > 100:  # Minimum trade size (INR)
+                        shares_to_buy = cash_to_use / current_price if current_price > 0 else 0
+                        transaction_cost = cash_to_use * self.transaction_cost
+                        
+                        self.positions[symbol] += shares_to_buy
+                        self.cash -= (cash_to_use + transaction_cost)
+                
+                elif action_value < -0.1 and self.positions[symbol] > 0:  # Sell signal
+                    shares_to_sell = self.positions[symbol] * min(abs(action_value), 1.0)
+                    if shares_to_sell > 0:
+                        sale_value = shares_to_sell * current_price
+                        transaction_cost = sale_value * self.transaction_cost
+                        
+                        self.positions[symbol] -= shares_to_sell
+                        self.cash += (sale_value - transaction_cost)
         
         # Calculate reward based on portfolio performance
         if previous_portfolio_value > 0:
             portfolio_return = (self.portfolio_value - previous_portfolio_value) / previous_portfolio_value
             
-            # Risk-adjusted reward (Sharpe-like)
-            # Penalize large drawdowns and reward consistent returns
-            reward = portfolio_return
+            # Risk-adjusted reward using RiskCalculator
+            portfolio_beta = self._calculate_portfolio_beta()
+            # Simplified drawdown calculation for reward
+            drawdown = min(0, portfolio_return)
+            risk_penalty = abs(drawdown * portfolio_beta)
+
+            reward = portfolio_return - risk_penalty
             
-            # Add risk penalty for high concentration
+            # Add concentration penalty
             concentration_penalty = self._calculate_concentration_penalty()
             reward -= concentration_penalty
             
@@ -330,19 +365,15 @@ class TradingEnvironment(gym.Env):
         if self.portfolio_value <= 0:
             return 0
         
-        # Calculate Herfindahl-Hirschman Index for concentration
         weights = []
         for symbol in self.symbols:
             weight = self.position_values.get(symbol, 0) / self.portfolio_value
             weights.append(weight)
         
-        # Add cash weight
         cash_weight = self.cash / self.portfolio_value
         weights.append(cash_weight)
         
         hhi = sum(w**2 for w in weights)
-        
-        # Penalty increases with concentration (HHI > 0.25 is considered concentrated)
         concentration_penalty = max(0, (hhi - 0.25) * 0.1)
         
         return concentration_penalty
@@ -354,14 +385,15 @@ class DRLAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.learning_rate = learning_rate
+        self.logger = logging.getLogger(__name__)
+        
+        # FIX: Assign optimizers to self to make them instance attributes
+        self.actor_optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
+        self.critic_optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
         
         # Build actor and critic networks
         self.actor = self._build_actor()
         self.critic = self._build_critic()
-        
-        # Optimizers
-        self.actor_optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
-        self.critic_optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
         
         # Training history
         self.training_history = []
@@ -369,7 +401,8 @@ class DRLAgent:
     def _build_actor(self):
         """Build actor network (policy)"""
         model = keras.Sequential([
-            layers.Dense(256, activation='relu', input_shape=(self.state_size,)),
+            layers.Input(shape=(self.state_size,)), # Use Input layer
+            layers.Dense(256, activation='relu'),
             layers.Dropout(0.2),
             layers.Dense(128, activation='relu'),
             layers.Dropout(0.2),
@@ -383,7 +416,8 @@ class DRLAgent:
     def _build_critic(self):
         """Build critic network (value function)"""
         model = keras.Sequential([
-            layers.Dense(256, activation='relu', input_shape=(self.state_size,)),
+            layers.Input(shape=(self.state_size,)), # Use Input layer
+            layers.Dense(256, activation='relu'),
             layers.Dropout(0.2),
             layers.Dense(128, activation='relu'),
             layers.Dropout(0.2),
@@ -396,55 +430,64 @@ class DRLAgent:
     
     def get_action(self, state, training=True):
         """Get action from current policy"""
-        state = tf.expand_dims(state, axis=0)
-        action = self.actor(state)[0]
-        
-        if training:
-            # Add exploration noise
-            noise = tf.random.normal(shape=action.shape, stddev=0.1)
-            action = tf.clip_by_value(action + noise, -1.0, 1.0)
-        
-        return action.numpy()
+        try:
+            state = tf.expand_dims(state, axis=0)
+            action = self.actor(state, training=False)[0] # Use training=False for inference
+            
+            if training:
+                noise = tf.random.normal(shape=action.shape, stddev=0.1)
+                action = tf.clip_by_value(action + noise, -1.0, 1.0)
+            
+            return action.numpy()
+        except Exception as e:
+            self.logger.error(f"Error getting action: {str(e)}")
+            return np.zeros(self.action_size)
     
     def train_step(self, states, actions, rewards, next_states, dones):
         """Perform one training step"""
-        states = tf.convert_to_tensor(states)
-        actions = tf.convert_to_tensor(actions)
-        rewards = tf.convert_to_tensor(rewards)
-        next_states = tf.convert_to_tensor(next_states)
-        dones = tf.convert_to_tensor(dones)
-        
-        # Calculate advantages
-        current_values = self.critic(states)
-        next_values = self.critic(next_states)
-        
-        # Temporal difference targets
-        td_targets = rewards + 0.99 * next_values * (1 - dones)
-        advantages = td_targets - current_values
-        
-        # Train critic
-        with tf.GradientTape() as tape:
-            values = self.critic(states, training=True)
-            critic_loss = tf.reduce_mean(tf.square(td_targets - values))
-        
-        critic_grads = tape.gradient(critic_loss, self.critic.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(critic_grads, self.critic.trainable_variables))
-        
-        # Train actor
-        with tf.GradientTape() as tape:
-            predicted_actions = self.actor(states, training=True)
-            actor_loss = -tf.reduce_mean(advantages * predicted_actions)
-        
-        actor_grads = tape.gradient(actor_loss, self.actor.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
-        
-        return float(actor_loss), float(critic_loss)
+        try:
+            states = tf.convert_to_tensor(states, dtype=tf.float32)
+            actions = tf.convert_to_tensor(actions, dtype=tf.float32)
+            rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
+            next_states = tf.convert_to_tensor(next_states, dtype=tf.float32)
+            dones = tf.convert_to_tensor(dones, dtype=tf.float32)
+            
+            # Calculate advantages
+            with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
+                current_values = self.critic(states, training=True)
+                next_values = self.critic(next_states, training=True)
+                
+                # Temporal difference targets
+                td_targets = rewards + 0.99 * next_values * (1 - dones)
+                advantages = td_targets - current_values
+                
+                # Train critic
+                critic_loss = tf.reduce_mean(tf.square(advantages))
+                
+                # Train actor
+                predicted_actions = self.actor(states, training=True)
+                # A simple policy gradient loss
+                actor_loss = -tf.reduce_mean(advantages * predicted_actions)
+
+            critic_grads = tape1.gradient(critic_loss, self.critic.trainable_variables)
+            self.critic_optimizer.apply_gradients(zip(critic_grads, self.critic.trainable_variables))
+            
+            actor_grads = tape2.gradient(actor_loss, self.actor.trainable_variables)
+            self.actor_optimizer.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
+            
+            return float(actor_loss), float(critic_loss)
+
+        except Exception as e:
+            self.logger.error(f"Error in train_step: {str(e)}")
+            return 0.0, 0.0
     
     def save_models(self, filepath_prefix):
         """Save trained models"""
         try:
-            self.actor.save(f"{filepath_prefix}_actor.h5")
-            self.critic.save(f"{filepath_prefix}_critic.h5")
+            os.makedirs(os.path.dirname(filepath_prefix), exist_ok=True)
+            self.actor.save(f"{filepath_prefix}_actor.keras")
+            self.critic.save(f"{filepath_prefix}_critic.keras")
+            self.logger.info(f"Saved models to {filepath_prefix}")
             return True
         except Exception as e:
             st.error(f"Error saving models: {str(e)}")
@@ -453,19 +496,21 @@ class DRLAgent:
     def load_models(self, filepath_prefix):
         """Load trained models"""
         try:
-            self.actor = keras.models.load_model(f"{filepath_prefix}_actor.h5")
-            self.critic = keras.models.load_model(f"{filepath_prefix}_critic.h5")
+            self.actor = keras.models.load_model(f"{filepath_prefix}_actor.keras")
+            self.critic = keras.models.load_model(f"{filepath_prefix}_critic.keras")
+            self.logger.info(f"Loaded models from {filepath_prefix}")
             return True
         except Exception as e:
             st.warning(f"Could not load models: {str(e)}")
             return False
 
 class DRLTrainer:
-    """Training manager for DRL trading agent"""
+    """Training manager for DRL trading agent for Indian stocks"""
     
-    def __init__(self, symbols=['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'BTC-USD']):
+    def __init__(self, symbols=['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS']):
         self.symbols = symbols
         self.env = TradingEnvironment(symbols=symbols)
+        self.logger = logging.getLogger(__name__)
         
         # Initialize agent
         state_size = self.env.observation_space.shape[0]
@@ -475,32 +520,29 @@ class DRLTrainer:
         # Training parameters
         self.episodes_trained = 0
         self.best_performance = -np.inf
-        
-    def train_agent(self, episodes=100, batch_size=32):
+        self.db_manager = DatabaseManager()
+    
+    def train_agent(self, episodes=10, batch_size=32):
         """Train the DRL agent"""
         training_results = []
         
         for episode in range(episodes):
             state = self.env.reset()
+            if state is None:
+                self.logger.error("Failed to reset environment. Aborting training.")
+                return []
+
             episode_reward = 0
             episode_steps = 0
             
             # Storage for batch training
-            states_batch = []
-            actions_batch = []
-            rewards_batch = []
-            next_states_batch = []
-            dones_batch = []
+            states_batch, actions_batch, rewards_batch, next_states_batch, dones_batch = [], [], [], [], []
             
             done = False
-            while not done and episode_steps < 1000:  # Max steps per episode
-                # Get action from agent
+            while not done and self.env.max_steps > 0 and episode_steps < self.env.max_steps:
                 action = self.agent.get_action(state, training=True)
-                
-                # Execute action in environment
                 next_state, reward, done, info = self.env.step(action)
                 
-                # Store experience
                 states_batch.append(state)
                 actions_batch.append(action)
                 rewards_batch.append(reward)
@@ -511,45 +553,36 @@ class DRLTrainer:
                 episode_reward += reward
                 episode_steps += 1
                 
-                # Train when batch is full
                 if len(states_batch) >= batch_size:
-                    actor_loss, critic_loss = self.agent.train_step(
-                        states_batch, actions_batch, rewards_batch,
-                        next_states_batch, dones_batch
+                    self.agent.train_step(
+                        np.array(states_batch), np.array(actions_batch), 
+                        np.array(rewards_batch), np.array(next_states_batch), 
+                        np.array(dones_batch)
                     )
-                    
-                    # Clear batch
-                    states_batch = []
-                    actions_batch = []
-                    rewards_batch = []
-                    next_states_batch = []
-                    dones_batch = []
+                    states_batch, actions_batch, rewards_batch, next_states_batch, dones_batch = [], [], [], [], []
             
-            # Train on remaining experiences
             if len(states_batch) > 0:
-                actor_loss, critic_loss = self.agent.train_step(
-                    states_batch, actions_batch, rewards_batch,
-                    next_states_batch, dones_batch
+                self.agent.train_step(
+                    np.array(states_batch), np.array(actions_batch), 
+                    np.array(rewards_batch), np.array(next_states_batch), 
+                    np.array(dones_batch)
                 )
-            
-            # Record training results
+
             final_portfolio_value = self.env.portfolio_value
-            total_return = (final_portfolio_value - self.env.initial_capital) / self.env.initial_capital
+            total_return = (final_portfolio_value - self.env.initial_capital) / self.env.initial_capital if self.env.initial_capital > 0 else 0
             
             training_results.append({
-                'episode': episode + 1,
-                'total_return': total_return,
-                'final_value': final_portfolio_value,
-                'episode_reward': episode_reward,
+                'episode': episode + 1, 'total_return': total_return,
+                'final_value': final_portfolio_value, 'episode_reward': episode_reward,
                 'steps': episode_steps
             })
             
-            # Save best model
             if total_return > self.best_performance:
                 self.best_performance = total_return
                 self.agent.save_models("models/best_drl_agent")
-            
+
             self.episodes_trained += 1
+            self.logger.info(f"Episode {episode + 1}: Return {total_return:.2%}, Value ₹{final_portfolio_value:,.2f}")
         
         return training_results
     
@@ -558,37 +591,28 @@ class DRLTrainer:
         if hasattr(self.agent, 'actor'):
             try:
                 action = self.agent.get_action(current_market_state, training=False)
-                
                 recommendations = []
                 for i, symbol in enumerate(self.symbols):
                     action_value = action[i]
-                    
                     if action_value > 0.2:
-                        recommendations.append({
-                            'symbol': symbol,
-                            'action': 'BUY',
-                            'strength': float(action_value),
-                            'confidence': min(float(action_value) * 100, 100)
-                        })
+                        rec = {'symbol': symbol, 'action': 'BUY', 'strength': float(action_value)}
                     elif action_value < -0.2:
-                        recommendations.append({
-                            'symbol': symbol,
-                            'action': 'SELL',
-                            'strength': float(abs(action_value)),
-                            'confidence': min(float(abs(action_value)) * 100, 100)
-                        })
+                        rec = {'symbol': symbol, 'action': 'SELL', 'strength': float(abs(action_value))}
                     else:
-                        recommendations.append({
-                            'symbol': symbol,
-                            'action': 'HOLD',
-                            'strength': 0,
-                            'confidence': 50
-                        })
+                        rec = {'symbol': symbol, 'action': 'HOLD', 'strength': 0}
+                    recommendations.append(rec)
                 
+                if self.db_manager.is_available():
+                     self.db_manager.store_portfolio_recommendation(
+                        user_session=f"drl_recommendation_{datetime.now().isoformat()}",
+                        investment_amount=0, risk_profile="DRL",
+                        recommended_allocation={rec['symbol']: rec.get('strength', 0) for rec in recommendations},
+                        ai_analysis=json.dumps(recommendations)
+                    )
                 return recommendations
             
             except Exception as e:
-                st.error(f"Error getting DRL recommendation: {str(e)}")
+                self.logger.error(f"Error getting DRL recommendation: {str(e)}")
                 return []
         
         return []

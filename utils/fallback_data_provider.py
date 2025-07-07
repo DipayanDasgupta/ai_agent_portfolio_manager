@@ -32,7 +32,8 @@ class FallbackDataProvider:
             'NIFTYPHARMA.NS': 20000.0,# Nifty Pharma Index
             
             # Market index
-            '^NSEI': 24000.0          # Nifty 50 Index
+            '^NSEI': 24000.0,          # Nifty 50 Index
+            '^BSESN': 82000.0 
         }
         
         self.volatility_map = {
@@ -40,7 +41,7 @@ class FallbackDataProvider:
             'RELIANCE.NS': 0.015, 'TCS.NS': 0.012, 'HDFCBANK.NS': 0.013, 'INFY.NS': 0.014, 
             'ICICIBANK.NS': 0.015, 'HINDUNILVR.NS': 0.012, 'DABUR.NS': 0.018, 'UPL.NS': 0.020,
             'NIFTYIT.NS': 0.010, 'BANKNIFTY.NS': 0.011, 'NIFTYFMCG.NS': 0.009, 
-            'NIFTYAUTO.NS': 0.013, 'NIFTYPHARMA.NS': 0.014, '^NSEI': 0.008
+            'NIFTYAUTO.NS': 0.013, 'NIFTYPHARMA.NS': 0.014, '^NSEI': 0.008, '^BSESN': 0.008
         }
         
         self.volume_map = {
@@ -48,7 +49,7 @@ class FallbackDataProvider:
             'RELIANCE.NS': 6000000, 'TCS.NS': 2000000, 'HDFCBANK.NS': 8000000, 'INFY.NS': 5000000,
             'ICICIBANK.NS': 10000000, 'HINDUNILVR.NS': 2000000, 'DABUR.NS': 1500000, 'UPL.NS': 2500000,
             'NIFTYIT.NS': 100000, 'BANKNIFTY.NS': 150000, 'NIFTYFMCG.NS': 80000, 
-            'NIFTYAUTO.NS': 90000, 'NIFTYPHARMA.NS': 120000, '^NSEI': 200000
+            'NIFTYAUTO.NS': 90000, 'NIFTYPHARMA.NS': 120000, '^NSEI': 200000,  '^BSESN': 150000
         }
     
     def generate_stock_data(self, symbol, days=100):

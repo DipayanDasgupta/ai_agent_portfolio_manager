@@ -79,26 +79,45 @@ class DataFetcher:
             self.logger.error(f"Error in get_stock_data for {symbol}: {str(e)}")
             return pd.DataFrame()
 
-    def _get_stock_data_yfinance(self, symbol):
-        """Fetch stock data from yfinance"""
+    # In utils/data_fetcher.py, inside the DataFetcher class
+
+    def get_stock_data(self, symbol, period='1mo'): # Changed default period to get more data
+        """Fetch stock data for Indian stocks using yfinance as primary source, with database caching."""
         try:
+            # 1. Check database cache for fresh data (1 hour freshness)
+            if self.db.data_freshness_check(symbol, 'stock', max_age_hours=1):
+                cached_data = self.db.get_market_data(symbol, 'stock', days_back=365)
+                if cached_data is not None and not cached_data.empty:
+                    self.logger.info(f"Using CACHED data for {symbol}")
+                    # Prepare dataframe for use
+                    df = cached_data.set_index(pd.to_datetime(cached_data['timestamp']))
+                    df = df[['open_price', 'high_price', 'low_price', 'close_price', 'volume']]
+                    df.columns = ['open', 'high', 'low', 'close', 'volume']
+                    return df.astype(float)
+
+            # 2. If no fresh cache, fetch from yfinance
+            self.logger.info(f"Cache miss or stale. Fetching LIVE data for {symbol} from yfinance.")
             stock = yf.Ticker(symbol)
-            df = stock.history(period="1mo", interval="1d")
+            # Fetch 1 year of data to ensure enough for calculations
+            df = stock.history(period="1y", interval="1d", auto_adjust=False) 
+            
             if df.empty:
-                self.logger.warning(f"No yfinance data for {symbol}")
+                self.logger.warning(f"No yfinance data found for {symbol}.")
                 return pd.DataFrame()
 
-            # Select and rename columns to match expected format
-            df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-            df.columns = ['open', 'high', 'low', 'close', 'volume']
-            df = df.astype(float)
-
-            # Store in database
+            # 3. Store the newly fetched data in the database
             df_for_db = df.copy()
+            # Ensure column names are consistent for the database
+            df_for_db.rename(columns={'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'}, inplace=True)
             df_for_db['timestamp'] = df_for_db.index
             self.db.store_market_data(symbol, 'stock', df_for_db)
+            
             self.logger.info(f"Successfully fetched and stored {symbol} from yfinance")
-            return df
+            return df.rename(columns={'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'})
+
+        except Exception as e:
+            self.logger.error(f"Error in get_stock_data for {symbol}: {e}")
+            return pd.DataFrame() # Return empty dataframe on error
 
         except Exception as e:
             self.logger.error(f"yfinance API error for {symbol}: {str(e)}")

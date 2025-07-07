@@ -1,3 +1,5 @@
+# utils/ai_analyzer.py
+
 import google.generativeai as genai
 import os
 import streamlit as st
@@ -6,6 +8,10 @@ from datetime import datetime
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import logging # FIX: Import the logging module
+
+# FIX: Create a logger instance for this file
+logger = logging.getLogger(__name__)
 
 class AIAnalyzer:
     def __init__(self):
@@ -15,7 +21,7 @@ class AIAnalyzer:
         try:
             if gemini_key:
                 genai.configure(api_key=gemini_key)
-                # Using gemini-2.5-pro as specified for fast and capable analysis
+                # Using gemini-1.5-pro-latest is a good choice for fast and capable analysis
                 self.model = genai.GenerativeModel('gemini-2.5-pro')
             else:
                 st.error("GEMINI_API_KEY not found. Please add it to your environment variables.")
@@ -29,7 +35,10 @@ class AIAnalyzer:
         try:
             if isinstance(symbols, str):
                 symbols = [symbols]
-            data = yf.download(symbols + ['^NSEI'], period=period, progress=False)
+            
+            # FIX: Add auto_adjust=False to maintain the old data structure (OHLC) and suppress the warning.
+            data = yf.download(symbols + ['^NSEI'], period=period, progress=False, auto_adjust=False)
+            
             if data.empty:
                 return {}
             
@@ -69,9 +78,8 @@ class AIAnalyzer:
         try:
             # Fetch market data for Nifty 50 to enrich context
             market_data = self._fetch_market_data(['^NSEI'])
-            # In utils/ai_analyzer.py
             volatility = market_data.get('^NSEI', {}).get('volatility_annualized', 0)
-            # Check if volatility is a number before formatting
+            
             if isinstance(volatility, (int, float)):
                 volatility_str = f"{volatility:.2%}"
             else:
@@ -107,14 +115,12 @@ class AIAnalyzer:
                     'temperature': 0.3
                 }
             )
-            
 
             try:
                 response_text = response.text
                 logger.debug(f"DEBUG: AI response text: {repr(response_text[:100])}")
                 return response_text
             except ValueError:
-                # This error is raised by the Gemini library if .text is accessed on an empty/blocked response
                 logger.warning(f"Gemini response blocked. Finish Reason: {response.candidates[0].finish_reason}. Prompt Feedback: {response.prompt_feedback}")
                 return "AI analysis was blocked due to safety settings. Please try rephrasing your request."
         
@@ -122,6 +128,10 @@ class AIAnalyzer:
             logger.error(f"DEBUG: Error in get_market_analysis: {str(e)}")
             st.error(f"Error getting market analysis: {str(e)}")
             return "AI analysis temporarily unavailable"
+    
+    # ... (the rest of the file remains the same) ...
+    # ... (analyze_portfolio, get_rebalancing_recommendations, etc.) ...
+    # Make sure to include the rest of your AIAnalyzer class methods here.
     
     def analyze_portfolio(self, portfolio_data, market_data=None):
         """Analyze current portfolio composition and performance for Indian stocks"""

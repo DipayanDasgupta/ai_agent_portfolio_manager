@@ -220,11 +220,11 @@ def main():
             options=['Nifty IT', 'Nifty Bank', 'Nifty FMCG', 'Nifty Auto', 'Nifty Pharma']
         )
         sector_tickers = {
-            'Nifty IT': 'NIFTYIT.NS',
-            'Nifty Bank': 'BANKNIFTY.NS',
-            'Nifty FMCG': 'NIFTYFMCG.NS',
-            'Nifty Auto': 'NIFTYAUTO.NS',
-            'Nifty Pharma': 'NIFTYPHARMA.NS'
+            'Nifty IT': '^CNXIT',
+            'Nifty Bank': '^NSEBANK',
+            'Nifty FMCG': '^CNXFMCG',
+            'Nifty Auto': '^CNXAUTO',
+            'Nifty Pharma': '^CNXPHARMA'
         }
         
         if st.button("📊 Get Sector Data"):

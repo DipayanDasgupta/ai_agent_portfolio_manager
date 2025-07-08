@@ -58,6 +58,7 @@ class TradingEnvironment(gym.Env):
             shape=(obs_dim,),
             dtype=np.float32
         )
+        self.max_steps = 0
         
         # Initialize environment state
         self.reset()
@@ -400,30 +401,32 @@ class DRLAgent:
     
     def _build_actor(self):
         """Build actor network (policy)"""
-        model = keras.Sequential([
-            layers.Input(shape=(self.state_size,)), # Use Input layer
-            layers.Dense(256, activation='relu'),
-            layers.Dropout(0.2),
-            layers.Dense(128, activation='relu'),
-            layers.Dropout(0.2),
-            layers.Dense(64, activation='relu'),
-            layers.Dense(self.action_size, activation='tanh')  # Actions between -1 and 1
-        ])
+        # --- START OF FIX: Use explicit Input layer for clarity and robustness ---
+        inputs = layers.Input(shape=(self.state_size,))
+        x = layers.Dense(256, activation='relu')(inputs)
+        x = layers.Dropout(0.2)(x)
+        x = layers.Dense(128, activation='relu')(x)
+        x = layers.Dropout(0.2)(x)
+        x = layers.Dense(64, activation='relu')(x)
+        outputs = layers.Dense(self.action_size, activation='tanh')(x)
+        model = keras.Model(inputs=inputs, outputs=outputs)
+        # --- END OF FIX ---
         
         model.compile(optimizer=self.actor_optimizer, loss='mse')
         return model
     
     def _build_critic(self):
         """Build critic network (value function)"""
-        model = keras.Sequential([
-            layers.Input(shape=(self.state_size,)), # Use Input layer
-            layers.Dense(256, activation='relu'),
-            layers.Dropout(0.2),
-            layers.Dense(128, activation='relu'),
-            layers.Dropout(0.2),
-            layers.Dense(64, activation='relu'),
-            layers.Dense(1, activation='linear')  # Value estimation
-        ])
+        # --- START OF FIX: Use explicit Input layer ---
+        inputs = layers.Input(shape=(self.state_size,))
+        x = layers.Dense(256, activation='relu')(inputs)
+        x = layers.Dropout(0.2)(x)
+        x = layers.Dense(128, activation='relu')(x)
+        x = layers.Dropout(0.2)(x)
+        x = layers.Dense(64, activation='relu')(x)
+        outputs = layers.Dense(1, activation='linear')(x)
+        model = keras.Model(inputs=inputs, outputs=outputs)
+        # --- END OF FIX ---
         
         model.compile(optimizer=self.critic_optimizer, loss='mse')
         return model

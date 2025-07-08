@@ -24,12 +24,12 @@ class FallbackDataProvider:
             'DABUR.NS': 600.0,        # Dabur India
             'UPL.NS': 550.0,          # UPL Limited
             
-            # Sector indices
-            'NIFTYIT.NS': 40000.0,    # Nifty IT Index
-            'BANKNIFTY.NS': 50000.0,  # Nifty Bank Index
-            'NIFTYFMCG.NS': 60000.0,  # Nifty FMCG Index
-            'NIFTYAUTO.NS': 25000.0,  # Nifty Auto Index
-            'NIFTYPHARMA.NS': 20000.0,# Nifty Pharma Index
+            # Corrected Sector indices
+            '^CNXIT': 40000.0,
+            '^NSEBANK': 50000.0,
+            '^CNXFMCG': 60000.0,
+            '^CNXAUTO': 25000.0,
+            '^CNXPHARMA': 20000.0,
             
             # Market index
             '^NSEI': 24000.0,          # Nifty 50 Index
@@ -40,16 +40,16 @@ class FallbackDataProvider:
             # Higher volatility for mid-caps, lower for large-caps and indices
             'RELIANCE.NS': 0.015, 'TCS.NS': 0.012, 'HDFCBANK.NS': 0.013, 'INFY.NS': 0.014, 
             'ICICIBANK.NS': 0.015, 'HINDUNILVR.NS': 0.012, 'DABUR.NS': 0.018, 'UPL.NS': 0.020,
-            'NIFTYIT.NS': 0.010, 'BANKNIFTY.NS': 0.011, 'NIFTYFMCG.NS': 0.009, 
-            'NIFTYAUTO.NS': 0.013, 'NIFTYPHARMA.NS': 0.014, '^NSEI': 0.008, '^BSESN': 0.008
+            '^CNXIT': 0.010, '^NSEBANK': 0.011, '^CNXFMCG': 0.009, 
+            '^CNXAUTO': 0.013, '^CNXPHARMA': 0.014, '^NSEI': 0.008, '^BSESN': 0.008
         }
         
         self.volume_map = {
             # Approximate daily volumes (in shares for stocks, units for indices)
             'RELIANCE.NS': 6000000, 'TCS.NS': 2000000, 'HDFCBANK.NS': 8000000, 'INFY.NS': 5000000,
             'ICICIBANK.NS': 10000000, 'HINDUNILVR.NS': 2000000, 'DABUR.NS': 1500000, 'UPL.NS': 2500000,
-            'NIFTYIT.NS': 100000, 'BANKNIFTY.NS': 150000, 'NIFTYFMCG.NS': 80000, 
-            'NIFTYAUTO.NS': 90000, 'NIFTYPHARMA.NS': 120000, '^NSEI': 200000,  '^BSESN': 150000
+           '^CNXIT': 100000, '^NSEBANK': 150000, '^CNXFMCG': 80000, 
+            '^CNXAUTO': 90000, '^CNXPHARMA': 120000, '^NSEI': 200000,  '^BSESN': 150000
         }
     
     def generate_stock_data(self, symbol, days=100):

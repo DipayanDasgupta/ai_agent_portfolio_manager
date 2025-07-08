@@ -130,7 +130,7 @@ def main():
     with col2:
         st.markdown("**🏦 Banking Sector**")
         try:
-            banknifty_data = data_fetcher.get_stock_data('BANKNIFTY.NS')
+            banknifty_data = data_fetcher.get_stock_data('^NSEBANK')
             if banknifty_data is not None and not banknifty_data.empty:
                 banknifty_current = float(banknifty_data.iloc[-1]['close'])
                 banknifty_prev = float(banknifty_data.iloc[-2]['close']) if len(banknifty_data) > 1 else banknifty_current
@@ -138,7 +138,7 @@ def main():
                 st.metric("Nifty Bank", f"₹{banknifty_current:,.2f}", f"{banknifty_change:+.2f}%")
                 logger.info(f"Successfully displayed Nifty Bank: ₹{banknifty_current:,.2f}")
             else:
-                banknifty_data = fallback.generate_stock_data('BANKNIFTY.NS', days=2)
+                banknifty_data = fallback.generate_stock_data('^NSEBANK', days=2)
                 if not banknifty_data.empty:
                     banknifty_current = float(banknifty_data.iloc[-1]['close'])
                     st.metric("Nifty Bank", f"₹{banknifty_current:,.2f}", "Synthetic data")
@@ -170,7 +170,7 @@ def main():
     with col3:
         st.markdown("**💻 IT Sector**")
         try:
-            niftyit_data = data_fetcher.get_stock_data('NIFTYIT.NS')
+            niftyit_data = data_fetcher.get_stock_data('^CNXIT')
             if niftyit_data is not None and not niftyit_data.empty:
                 niftyit_current = float(niftyit_data.iloc[-1]['close'])
                 niftyit_prev = float(niftyit_data.iloc[-2]['close']) if len(niftyit_data) > 1 else niftyit_current
@@ -178,7 +178,7 @@ def main():
                 st.metric("Nifty IT", f"₹{niftyit_current:,.2f}", f"{niftyit_change:+.2f}%")
                 logger.info(f"Successfully displayed Nifty IT: ₹{niftyit_current:,.2f}")
             else:
-                niftyit_data = fallback.generate_stock_data('NIFTYIT.NS', days=2)
+                niftyit_data = fallback.generate_stock_data('^CNXIT', days=2)
                 if not niftyit_data.empty:
                     niftyit_current = float(niftyit_data.iloc[-1]['close'])
                     st.metric("Nifty IT", f"₹{niftyit_current:,.2f}", "Synthetic data")
@@ -210,7 +210,7 @@ def main():
     with col4:
         st.markdown("**🛒 FMCG Sector**")
         try:
-            niftyfmcg_data = data_fetcher.get_stock_data('NIFTYFMCG.NS')
+            niftyfmcg_data = data_fetcher.get_stock_data('^CNXFMCG')
             if niftyfmcg_data is not None and not niftyfmcg_data.empty:
                 niftyfmcg_current = float(niftyfmcg_data.iloc[-1]['close'])
                 niftyfmcg_prev = float(niftyfmcg_data.iloc[-2]['close']) if len(niftyfmcg_data) > 1 else niftyfmcg_current
@@ -218,7 +218,7 @@ def main():
                 st.metric("Nifty FMCG", f"₹{niftyfmcg_current:,.2f}", f"{niftyfmcg_change:+.2f}%")
                 logger.info(f"Successfully displayed Nifty FMCG: ₹{niftyfmcg_current:,.2f}")
             else:
-                niftyfmcg_data = fallback.generate_stock_data('NIFTYFMCG.NS', days=2)
+                niftyfmcg_data = fallback.generate_stock_data('^CNXFMCG', days=2)
                 if not niftyfmcg_data.empty:
                     niftyfmcg_current = float(niftyfmcg_data.iloc[-1]['close'])
                     st.metric("Nifty FMCG", f"₹{niftyfmcg_current:,.2f}", "Synthetic data")
@@ -386,11 +386,11 @@ def main():
     try:
         logger.info("Fetching Indian sector performance data")
         sectors = {
-            'Nifty IT': 'NIFTYIT.NS',
-            'Nifty Bank': 'BANKNIFTY.NS',
-            'Nifty FMCG': 'NIFTYFMCG.NS',
-            'Nifty Auto': 'NIFTYAUTO.NS',
-            'Nifty Pharma': 'NIFTYPHARMA.NS'
+            'Nifty IT': '^CNXIT',
+            'Nifty Bank': '^NSEBANK',
+            'Nifty FMCG': '^CNXFMCG',
+            'Nifty Auto': '^CNXAUTO',
+            'Nifty Pharma': '^CNXPHARMA'
         }
         
         sector_performance = {}

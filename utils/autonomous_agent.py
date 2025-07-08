@@ -51,11 +51,11 @@ class AutonomousPortfolioAgent:
         # Define Indian stock universe
         self.indian_stocks = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS', 'HINDUNILVR.NS', 'DABUR.NS', 'UPL.NS']
         self.indian_sectors = {
-            'Nifty IT': 'NIFTYIT.NS',
-            'Nifty Bank': 'BANKNIFTY.NS',
-            'Nifty FMCG': 'NIFTYFMCG.NS',
-            'Nifty Auto': 'NIFTYAUTO.NS',
-            'Nifty Pharma': 'NIFTYPHARMA.NS'
+            'Nifty IT': '^CNXIT',
+            'Nifty Bank': '^NSEBANK',
+            'Nifty FMCG': '^CNXFMCG',
+            'Nifty Auto': '^CNXAUTO',
+            'Nifty Pharma': '^CNXPHARMA'
         }
 
         # Agent persona for Indian market

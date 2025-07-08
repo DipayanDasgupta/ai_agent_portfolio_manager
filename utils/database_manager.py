@@ -141,7 +141,6 @@ class DatabaseManager:
         
         try:
             cursor = self.conn.cursor()
-            # FIX: Use seconds for more granular control
             cutoff_time = datetime.now() - timedelta(seconds=max_age_seconds)
             
             if self.db_type == "sqlite":
@@ -159,6 +158,7 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Error checking data freshness for {symbol}: {str(e)}")
             return False
+
 
     def get_database_info(self):
         """Get database information for display (works for both SQLite and PostgreSQL)."""

@@ -183,7 +183,7 @@ def main():
                             optimization_type = {'conservative': 'min_vol', 'moderate': 'sharpe', 'aggressive': 'max_return'}[risk_profile]
                             portfolio_result = optimizer.optimize_portfolio(returns_data, optimization_type=optimization_type)
                             
-                            if portfolio_result and portfolio_result['success']:
+                            if portfolio_result and portfolio_result.get('success'):
                                 logger.info("Portfolio optimization successful")
                                 st.success("✅ Portfolio Created Successfully!")
                                 
@@ -243,8 +243,11 @@ def main():
                                     'sectors': sectors
                                 }
                             else:
-                                logger.error(f"Portfolio optimization failed: {portfolio_result.get('message', 'Unknown error')}")
-                                st.error("Error creating portfolio. Please try again.")
+                                # This block now handles both failed optimization and None return
+                                error_message = portfolio_result.get('message', 'Could not generate a valid portfolio. This may be due to temporary data source issues.') if portfolio_result else "Could not generate a valid portfolio due to data fetching issues."
+                                logger.error(f"Portfolio optimization failed: {error_message}")
+                                st.error(f"Error creating portfolio: {error_message}")
+                                
                         except Exception as e:
                             logger.error(f"Portfolio creation error: {str(e)}")
                             st.error(f"Error creating portfolio: {str(e)}")
@@ -267,11 +270,11 @@ def main():
                     with st.spinner("Analyzing Indian market sectors..."):
                         try:
                             sector_tickers = {
-                                'Nifty IT': 'NIFTYIT.NS',
-                                'Nifty Bank': 'BANKNIFTY.NS',
-                                'Nifty FMCG': 'NIFTYFMCG.NS',
-                                'Nifty Auto': 'NIFTYAUTO.NS',
-                                'Nifty Pharma': 'NIFTYPHARMA.NS'
+                                'Nifty IT': '^CNXIT',
+                                'Nifty Bank': '^NSEBANK',
+                                'Nifty FMCG': '^CNXFMCG',
+                                'Nifty Auto': '^CNXAUTO',
+                                'Nifty Pharma': '^CNXPHARMA'
                             }
                             research_results = []
                             for sector in research_sectors:

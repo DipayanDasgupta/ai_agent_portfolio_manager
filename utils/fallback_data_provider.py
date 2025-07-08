@@ -100,6 +100,11 @@ class FallbackDataProvider:
             
             df = pd.DataFrame(data, index=dates)
             
+            # --- START OF FIX ---
+            # This line is critical and must be present.
+            df['source'] = 'synthetic'
+            # --- END OF FIX ---
+            
             # Store in DatabaseManager with synthetic data indicator
             if self.db_manager.is_available():
                 df_for_db = df.copy()

@@ -67,7 +67,7 @@ def main():
     
     try:
         st.set_page_config(
-            page_title="India AI Portfolio Manager",
+            page_title="Indian AI Portfolio Manager",
             page_icon="🇮🇳",  # Indian flag emoji
             layout="wide",
             initial_sidebar_state="expanded"

@@ -46,53 +46,24 @@ class DataFetcher:
         # Define representative stocks for news fetching (consistent with AIAnalyzer and RiskCalculator)
         self.nifty_tickers = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS', 'HINDUNILVR.NS', 'DABUR.NS', 'UPL.NS']
 
-    def get_stock_data(self, symbol, period='1day'):
-        """Fetch stock data for Indian stocks using yfinance as primary source, Finnhub as backup"""
+    def get_stock_data(self, symbol, period='1y'):
+        """Fetch stock data with standardiz                                    ed timezone-naive index."""
         try:
-            # Check database cache (1 hour freshness)
-            if self.db.data_freshness_check(symbol, 'stock', max_age_hours=1):
-                cached_data = self.db.get_market_data(symbol, 'stock', days_back=30)
-                if cached_data is not None and not cached_data.empty:
-                    self.logger.info(f"Using cached data for {symbol}")
-                    df = cached_data.set_index('timestamp')[
-                        ['open_price', 'high_price', 'low_price', 'close_price', 'volume']
-                    ]
-                    df.columns = ['open', 'high', 'low', 'close', 'volume']
-                    for col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
-                    return df
-
-            # Try yfinance first
-            self.logger.info(f"Trying yfinance for {symbol}")
-            df = self._get_stock_data_yfinance(symbol)
-            if not df.empty:
-                return df
-
-            # Fall back to Finnhub if yfinance fails
-            if self.finnhub_client:
-                self.logger.info(f"yfinance failed, trying Finnhub for {symbol}")
-                return self._get_stock_data_finnhub(symbol)
-
-            self.logger.warning(f"No data available for {symbol} from yfinance or Finnhub")
-            return pd.DataFrame()
-
-        except Exception as e:
-            self.logger.error(f"Error in get_stock_data for {symbol}: {str(e)}")
-            return pd.DataFrame()
-
-    # In utils/data_fetcher.py, inside the DataFetcher class
-
-    def get_stock_data(self, symbol, period='1mo'): # Changed default period to get more data
-        """Fetch stock data for Indian stocks using yfinance as primary source, with database caching."""
-        try:
-            # 1. Check database cache for fresh data (1 hour freshness)
+            # 1. Check database cache for fresh data
             if self.db.data_freshness_check(symbol, 'stock', max_age_hours=1):
                 cached_data = self.db.get_market_data(symbol, 'stock', days_back=365)
                 if cached_data is not None and not cached_data.empty:
                     self.logger.info(f"Using CACHED data for {symbol}")
-                    # Prepare dataframe for use
-                    df = cached_data.set_index(pd.to_datetime(cached_data['timestamp']))
-                    df = df[['open_price', 'high_price', 'low_price', 'close_price', 'volume']]
+                    
+                    # --- START OF FIX 1 ---
+                    # Use format='mixed' to handle different timestamp formats from the database gracefully.
+                    # This resolves the "time data doesn't match format" error.
+                    cached_data['timestamp'] = pd.to_datetime(cached_data['timestamp'], format='mixed', errors='coerce')
+                    cached_data.set_index('timestamp', inplace=True)
+                    cached_data.index = cached_data.index.tz_localize(None)
+                    # --- END OF FIX 1 ---
+                    
+                    df = cached_data[['open_price', 'high_price', 'low_price', 'close_price', 'volume']]
                     df.columns = ['open', 'high', 'low', 'close', 'volume']
                     return df.astype(float)
 
@@ -104,7 +75,12 @@ class DataFetcher:
             
             if df.empty:
                 self.logger.warning(f"No yfinance data found for {symbol}.")
-                return pd.DataFrame()
+                return self._get_stock_data_finnhub(symbol)
+
+            # --- START OF FIX 2 ---
+            # Also standardize the index for freshly fetched data
+            df.index = df.index.tz_localize(None)
+            # --- END OF FIX 2 ---
 
             # 3. Store the newly fetched data in the database
             df_for_db = df.copy()
@@ -118,11 +94,7 @@ class DataFetcher:
 
         except Exception as e:
             self.logger.error(f"Error in get_stock_data for {symbol}: {e}")
-            return pd.DataFrame() # Return empty dataframe on error
-
-        except Exception as e:
-            self.logger.error(f"yfinance API error for {symbol}: {str(e)}")
-            return pd.DataFrame()
+            return self._get_stock_data_finnhub(symbol)
 
     def _get_stock_data_finnhub(self, symbol):
         """Fetch stock data from Finnhub API using free endpoints"""

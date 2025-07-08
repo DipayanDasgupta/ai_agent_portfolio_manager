@@ -132,16 +132,18 @@ class DatabaseManager:
         return self.db_available
     # In utils/database_manager.py, inside the DatabaseManager class
 
-    def data_freshness_check(self, symbol, asset_type, max_age_hours=1):
+    # In utils/database_manager.py
+
+    def data_freshness_check(self, symbol, asset_type, max_age_seconds=300):
         """Check if data in the database is recent enough."""
         if not self.is_available():
             return False
         
         try:
             cursor = self.conn.cursor()
-            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            # FIX: Use seconds for more granular control
+            cutoff_time = datetime.now() - timedelta(seconds=max_age_seconds)
             
-            # This query works for both SQLite and PostgreSQL
             if self.db_type == "sqlite":
                 query = "SELECT COUNT(*) FROM market_data WHERE symbol = ? AND asset_type = ? AND datetime(created_at) >= datetime(?)"
                 params = (symbol, asset_type, cutoff_time.isoformat())
@@ -156,7 +158,7 @@ class DatabaseManager:
             
         except Exception as e:
             self.logger.error(f"Error checking data freshness for {symbol}: {str(e)}")
-            return False    
+            return False
 
     def get_database_info(self):
         """Get database information for display (works for both SQLite and PostgreSQL)."""

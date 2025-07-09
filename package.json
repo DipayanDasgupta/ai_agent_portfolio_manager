@@ -1,0 +1,16 @@
+{
+  "name": "ai_agent_portfolio_manager",
+  "version": "1.0.0",
+  "description": "**Version 1.0.0**",
+  "main": "run_scraper.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "google-news-scraper": "^2.7.0",
+    "puppeteer": "^24.12.0"
+  }
+}
